@@ -333,6 +333,7 @@ class Figure(Artist):
         self._axstack = AxesStack()  # track all figure axes and current axes
         self.clf()
         self._cachedRenderer = None
+        self.animated = []
 
     def show(self, warn=True):
         """

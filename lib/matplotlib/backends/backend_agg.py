@@ -437,6 +437,7 @@ class FigureCanvasAgg(FigureCanvasBase):
         RendererAgg.lock.acquire()
 
         try:
+            print (self.figure)
             self.figure.draw(self.renderer)
         finally:
             RendererAgg.lock.release()

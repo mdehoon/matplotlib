@@ -345,6 +345,15 @@ class FigureCanvasMac(_macosx.FigureCanvas, FigureCanvasBase):
         """
         return TimerMac(*args, **kwargs)
 
+    def restore_region(self, region, bbox=None, xy=None):
+        print ("Restoring region")
+
+    def animate(self, artists):
+        for artist in artists:
+            artist.axes._cachedRenderer = self.renderer
+            artist.axes.draw_artist(artist)
+        self.figure.animated = None
+
 
 class FigureManagerMac(_macosx.FigureManager, FigureManagerBase):
     """

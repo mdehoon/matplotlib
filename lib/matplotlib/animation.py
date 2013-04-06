@@ -768,9 +768,11 @@ class Animation(object):
             self._fig.canvas.draw_idle()
 
     # The rest of the code in this class is to facilitate easy blitting
-    def _blit_draw(self, artists, bg_cache):
+    def _blit_draw(self, artists, bg_cache=None):
         # Handles blitted drawing, which renders only the artists given instead
         # of the entire figure.
+        if bg_cache is None:
+            bg_cache = self._blit_cache
         updated_ax = []
         for a in artists:
             # If we haven't cached the background for this axes object, do
@@ -778,7 +780,7 @@ class Animation(object):
             # to automate the process.
             if a.axes not in bg_cache:
                 bg_cache[a.axes] = a.figure.canvas.copy_from_bbox(a.axes.bbox)
-            a.axes.draw_artist(a)
+            # a.axes.draw_artist(a)
             updated_ax.append(a.axes)
 
         # After rendering all the needed artists, blit each axes individually.
@@ -846,6 +848,7 @@ class TimedAnimation(Animation):
         # sharing timers between animation objects for syncing animations.
         if event_source is None:
             event_source = fig.canvas.new_timer()
+            print("Made a new timer", event_source)
             event_source.interval = self._interval
 
         Animation.__init__(self, fig, event_source=event_source,
@@ -1000,12 +1003,14 @@ class FuncAnimation(TimedAnimation):
 
     def new_frame_seq(self):
         # Use the generating function to generate a new frame sequence
+        print "In new_frame_seq"
         return self._iter_gen()
 
     def new_saved_frame_seq(self):
         # Generate an iterator for the sequence of saved data. If there are
         # no saved frames, generate a new frame sequence and take the first
         # save_count entries in it.
+        print "In new_saved_frame_seq"
         if self._save_seq:
             return iter(self._save_seq)
         else:
@@ -1016,6 +1021,7 @@ class FuncAnimation(TimedAnimation):
         # calling the draw function with the first item of the frame sequence.
         # For blitting, the init_func should return a sequence of modified
         # artists.
+        print "In _init_draw"
         if self._init_func is None:
             self._draw_frame(next(self.new_frame_seq()))
         else:
@@ -1032,3 +1038,9 @@ class FuncAnimation(TimedAnimation):
         # Call the func with framedata and args. If blitting is desired,
         # func needs to return a sequence of any artists that were modified.
         self._drawn_artists = self._func(framedata, *self._args)
+        for artist in self._drawn_artists:
+            figure = artist.axes.figure
+            if figure.animated is None:
+                figure.animated = []
+            figure.animated.append(artist)
+            figure.canvas.invalidate()

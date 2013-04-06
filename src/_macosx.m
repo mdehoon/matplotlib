@@ -11,6 +11,8 @@
 #define PY3K 0
 #endif
 
+static NSBitmapImageRep* cached_image = nil;
+
 /* Must define Py_TYPE for Python 2.5 or older */
 #ifndef Py_TYPE
 # define Py_TYPE(o) ((o)->ob_type)
@@ -438,6 +440,7 @@ static void _release_hatch(void* info)
 - (void)invertAll:(id)sender;
 - (int)index;
 @end
+
 
 /* ---------------------------- Python classes ---------------------------- */
 
@@ -3630,6 +3633,17 @@ FigureCanvas_stop_event_loop(FigureCanvas* self)
     return Py_None;
 }
 
+static PyObject*
+FigureCanvas_copy_from_bbox(FigureCanvas* self, PyObject* args)
+{
+    View* view = self->view;
+    cached_image = [view bitmapImageRepForCachingDisplayInRect: [view visibleRect]];
+    [view cacheDisplayInRect: [view visibleRect] toBitmapImageRep: cached_image];
+    printf("cached_image = %p\n", cached_image);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 static PyMethodDef FigureCanvas_methods[] = {
     {"draw",
      (PyCFunction)FigureCanvas_draw,
@@ -3666,6 +3680,11 @@ static PyMethodDef FigureCanvas_methods[] = {
      (PyCFunction)FigureCanvas_stop_event_loop,
      METH_KEYWORDS,
      "Stops the event loop that was started by start_event_loop.\n",
+    },
+    {"copy_from_bbox",
+     (PyCFunction)FigureCanvas_copy_from_bbox,
+     METH_VARARGS,
+     "Take a snapshot of the View area within the bounding box for later use\n"
     },
     {NULL}  /* Sentinel */
 };
@@ -5076,6 +5095,7 @@ set_cursor(PyObject* unused, PyObject* args)
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     PyObject* figure = PyObject_GetAttrString(canvas, "figure");
+
     if (!figure)
     {
         PyErr_Print();
@@ -5106,11 +5126,26 @@ set_cursor(PyObject* unused, PyObject* args)
     gc->cr = cr;
     gc->level = 0;
 
-    result = PyObject_CallMethod(figure, "draw", "O", renderer);
+if (cached_image) {
+    CGRect destRect = CGRectMake(0, 0, 100, 100);
+    CGContextDrawImage(cr, destRect, [cached_image CGImage]);
+}
+else {
+    PyObject* animated = PyObject_GetAttrString(figure, "animated");
+    static int firsttime = 1;
+    if(animated==Py_None || firsttime) {
+        result = PyObject_CallMethod(figure, "draw", "O", renderer);
+    }
+    else {
+        result = PyObject_CallMethod(canvas, "animate", "O", animated);
+    }
+    Py_DECREF(animated);
+    firsttime = 0;
     if(result)
         Py_DECREF(result);
     else
         PyErr_Print();
+}
 
     gc->cr = nil;
 
