@@ -1891,6 +1891,7 @@ class Events(OptionalBackendPackage):
         ext = make_extension('matplotlib.events', sources)
         ext.extra_link_args.extend(['-ltcl8.6'])
         ext.extra_link_args.extend(['-ltk8.6'])
+        ext.extra_link_args.extend(['-lXt'])
         return ext
 
 class Windowing(OptionalBackendPackage):
