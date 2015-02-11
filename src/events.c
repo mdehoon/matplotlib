@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <X11/Intrinsic.h>
 #include <Python.h>
 #include <tcl.h>
@@ -663,95 +664,22 @@ static void stdin_callback(XtPointer client_data, int* source, XtInputId* id)
     *input_available = 1;
 }
 
+static XtSignalId sigint_handler_id;
+
+static void sigint_handler(XtPointer client_data, XtSignalId* id)
+{
+    int* interrupted = client_data;
+    *interrupted = 1;
+}
+
+static void sigint_catcher(int signo)
+{
+    XtNoticeSignal(sigint_handler_id);
+}
+
 static int wait_for_stdin(void)
 {
-#ifdef FINISHED
-    const UInt8 buffer[] = "/dev/fd/0";
-    const CFIndex n = (CFIndex)strlen((char*)buffer);
-    CFRunLoopRef runloop = CFRunLoopGetCurrent();
-    CFURLRef url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault,
-                                                           buffer,
-                                                           n,
-                                                           false);
-    CFReadStreamRef stream = CFReadStreamCreateWithFile(kCFAllocatorDefault,
-                                                        url);
-    CFRelease(url);
-
-    CFReadStreamOpen(stream);
-    if (!CFReadStreamHasBytesAvailable(stream))
-    /* This is possible because of how PyOS_InputHook is called from Python */
-    {
-        int error;
-        int interrupted = 0;
-        int channel[2];
-        CFSocketRef sigint_socket = NULL;
-        PyOS_sighandler_t py_sigint_handler = NULL;
-        CFStreamClientContext clientContext = {0, NULL, NULL, NULL, NULL};
-        CFReadStreamSetClient(stream,
-                              kCFStreamEventHasBytesAvailable,
-                              stdin_ready,
-                              &clientContext);
-        CFReadStreamScheduleWithRunLoop(stream, runloop, kCFRunLoopCommonModes);
-        error = pipe(channel);
-        if (error==0)
-        {
-            fcntl(channel[1], F_SETFL, O_WRONLY | O_NONBLOCK);
-
-            sigint_socket = CFSocketCreateWithNative(kCFAllocatorDefault,
-                                                     channel[0],
-                                                     kCFSocketReadCallBack,
-                                                     _callback,
-                                                     NULL);
-            if (sigint_socket)
-            {
-                CFRunLoopSourceRef source;
-                source = CFSocketCreateRunLoopSource(kCFAllocatorDefault,
-                                                     sigint_socket,
-                                                     0);
-                CFRelease(sigint_socket);
-                if (source)
-                {
-                    CFRunLoopAddSource(runloop, source, kCFRunLoopDefaultMode);
-                    CFRelease(source);
-                    sigint_fd = channel[1];
-                    py_sigint_handler = PyOS_setsig(SIGINT, _sigint_handler);
-                }
-            }
-            else
-                close(channel[0]);
-        }
-
-        NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
-        NSDate* date = [NSDate distantFuture];
-        while (true)
-        {   NSEvent* event = [NSApp nextEventMatchingMask: NSAnyEventMask
-                                                untilDate: date
-                                                   inMode: NSDefaultRunLoopMode
-                                                  dequeue: YES];
-           if (!event) break; /* No windows open */
-           if ([event type]==NSApplicationDefined)
-           {   short subtype = [event subtype];
-               if (subtype==STDIN_READY) break;
-               if (subtype==SIGINT_CALLED)
-               {   interrupted = true;
-                   break;
-               }
-           }
-           [NSApp sendEvent: event];
-        }
-        [pool release];
-
-        if (py_sigint_handler) PyOS_setsig(SIGINT, py_sigint_handler);
-        CFReadStreamUnscheduleFromRunLoop(stream,
-                                          runloop,
-                                          kCFRunLoopCommonModes);
-        if (sigint_socket) CFSocketInvalidate(sigint_socket);
-        if (error==0) close(channel[1]);
-        if (interrupted) raise(SIGINT);
-    }
-    CFReadStreamClose(stream);
-    CFRelease(stream);
-#endif
+    int interrupted = 0;
     int input_available = 0;
     int fd = fileno(stdin);
     XtAppContext context = TclSetAppContext(NULL);
@@ -760,12 +688,21 @@ static int wait_for_stdin(void)
                                     (XtPointer)XtInputReadMask,
                                     stdin_callback,
                                     &input_available);
-    int oldMode = Tcl_SetServiceMode(TCL_SERVICE_ALL);
-    while (!input_available) {
+    int old_mode = Tcl_SetServiceMode(TCL_SERVICE_ALL);
+    sig_t py_sigint_catcher = PyOS_setsig(SIGINT, sigint_catcher);
+    sigint_handler_id = XtAppAddSignal(context, sigint_handler, &interrupted);
+    while (!input_available && !interrupted) {
         XtAppProcessEvent(context, XtIMAll);
     }
-    (void) Tcl_SetServiceMode(oldMode);
+    PyOS_setsig(SIGINT, py_sigint_catcher);
+    XtRemoveSignal(sigint_handler_id);
+    (void) Tcl_SetServiceMode(old_mode);
     XtRemoveInput(input);
+    if (interrupted) {
+        errno = EINTR;
+        raise(SIGINT);
+        return -1;
+    }
     return 1;
 }
 
