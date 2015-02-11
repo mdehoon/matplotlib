@@ -696,7 +696,7 @@ static int wait_for_stdin(void)
     }
     PyOS_setsig(SIGINT, py_sigint_catcher);
     XtRemoveSignal(sigint_handler_id);
-    (void) Tcl_SetServiceMode(old_mode);
+    Tcl_SetServiceMode(old_mode);
     XtRemoveInput(input);
     if (interrupted) {
         errno = EINTR;
