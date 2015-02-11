@@ -670,16 +670,107 @@ Py_DoOneEvent(void)
     return 0;
 }
 
+static int wait_for_stdin(void)
+{
+#ifdef FINISHED
+    const UInt8 buffer[] = "/dev/fd/0";
+    const CFIndex n = (CFIndex)strlen((char*)buffer);
+    CFRunLoopRef runloop = CFRunLoopGetCurrent();
+    CFURLRef url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault,
+                                                           buffer,
+                                                           n,
+                                                           false);
+    CFReadStreamRef stream = CFReadStreamCreateWithFile(kCFAllocatorDefault,
+                                                        url);
+    CFRelease(url);
+
+    CFReadStreamOpen(stream);
+    if (!CFReadStreamHasBytesAvailable(stream))
+    /* This is possible because of how PyOS_InputHook is called from Python */
+    {
+        int error;
+        int interrupted = 0;
+        int channel[2];
+        CFSocketRef sigint_socket = NULL;
+        PyOS_sighandler_t py_sigint_handler = NULL;
+        CFStreamClientContext clientContext = {0, NULL, NULL, NULL, NULL};
+        CFReadStreamSetClient(stream,
+                              kCFStreamEventHasBytesAvailable,
+                              stdin_ready,
+                              &clientContext);
+        CFReadStreamScheduleWithRunLoop(stream, runloop, kCFRunLoopCommonModes);
+        error = pipe(channel);
+        if (error==0)
+        {
+            fcntl(channel[1], F_SETFL, O_WRONLY | O_NONBLOCK);
+
+            sigint_socket = CFSocketCreateWithNative(kCFAllocatorDefault,
+                                                     channel[0],
+                                                     kCFSocketReadCallBack,
+                                                     _callback,
+                                                     NULL);
+            if (sigint_socket)
+            {
+                CFRunLoopSourceRef source;
+                source = CFSocketCreateRunLoopSource(kCFAllocatorDefault,
+                                                     sigint_socket,
+                                                     0);
+                CFRelease(sigint_socket);
+                if (source)
+                {
+                    CFRunLoopAddSource(runloop, source, kCFRunLoopDefaultMode);
+                    CFRelease(source);
+                    sigint_fd = channel[1];
+                    py_sigint_handler = PyOS_setsig(SIGINT, _sigint_handler);
+                }
+            }
+            else
+                close(channel[0]);
+        }
+
+        NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+        NSDate* date = [NSDate distantFuture];
+        while (true)
+        {   NSEvent* event = [NSApp nextEventMatchingMask: NSAnyEventMask
+                                                untilDate: date
+                                                   inMode: NSDefaultRunLoopMode
+                                                  dequeue: YES];
+           if (!event) break; /* No windows open */
+           if ([event type]==NSApplicationDefined)
+           {   short subtype = [event subtype];
+               if (subtype==STDIN_READY) break;
+               if (subtype==SIGINT_CALLED)
+               {   interrupted = true;
+                   break;
+               }
+           }
+           [NSApp sendEvent: event];
+        }
+        [pool release];
+
+        if (py_sigint_handler) PyOS_setsig(SIGINT, py_sigint_handler);
+        CFReadStreamUnscheduleFromRunLoop(stream,
+                                          runloop,
+                                          kCFRunLoopCommonModes);
+        if (sigint_socket) CFSocketInvalidate(sigint_socket);
+        if (error==0) close(channel[1]);
+        if (interrupted) raise(SIGINT);
+    }
+    CFReadStreamClose(stream);
+    CFRelease(stream);
+#endif
+    while (1) {
+        Py_DoOneEvent();
+    }
+    return 1;
+}
+
 static PyObject*
 run(PyObject* unused, PyObject* args)
 {
     const char* filename;
-    if(!PyArg_ParseTuple(args, "s", &filename))
-        return NULL;
+    if(!PyArg_ParseTuple(args, "s", &filename)) return NULL;
     Tcl_EvalFile(interp, filename); 
-    while (1) {
-        Py_DoOneEvent();
-    }
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -733,6 +824,8 @@ void initevents(void)
 #endif
     }
     Tk_Init(interp);
+
+    PyOS_InputHook = wait_for_stdin;
 #if PY3K
     return module;
 #endif
