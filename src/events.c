@@ -198,56 +198,20 @@ NotifierExitHandler(
  */
 
 XtAppContext
-TclSetAppContext(
-    XtAppContext appContext)
+TclSetAppContext(void)
 {
     if (!initialized) {
 	InitNotifier();
     }
 
-    /*
-     * If we already have a context we check whether we were asked to set a
-     * new context. If so, we panic because we try to prevent switching
-     * contexts by mistake. Otherwise, we return the one we have.
-     */
-
-    if (notifier.appContext != NULL) {
-	if (appContext != NULL) {
-	    /*
-	     * We already have a context. We do not allow switching contexts
-	     * after initialization, so we panic.
-	     */
-
-	    Tcl_Panic("TclSetAppContext:  multiple application contexts");
-	}
-    } else {
-	/*
-	 * If we get here we have not yet gotten a context, so either create
-	 * one or use the one supplied by our caller.
-	 */
-
-	if (appContext == NULL) {
-	    /*
-	     * We must create a new context and tell our caller what it is, so
-	     * she can use it too.
-	     */
-
-	    notifier.appContext = XtCreateApplicationContext();
-	    notifier.appContextCreated = 1;
-	} else {
-	    /*
-	     * Otherwise we remember the context that our caller gave us and
-	     * use it.
-	     */
-
-	    notifier.appContextCreated = 0;
-	    notifier.appContext = appContext;
-	}
+    if (notifier.appContext == NULL) {
+        notifier.appContext = XtCreateApplicationContext();
+        notifier.appContextCreated = 1;
     }
 
     return notifier.appContext;
 }
-
+
 /*
  *----------------------------------------------------------------------
  *
@@ -409,7 +373,7 @@ SetTimer(
 	InitNotifier();
     }
 
-    TclSetAppContext(NULL);
+    TclSetAppContext();
     if (notifier.currentTimeout != 0) {
 	XtRemoveTimeOut(notifier.currentTimeout);
     }
@@ -485,7 +449,7 @@ CreateFileHandler(
 	InitNotifier();
     }
 
-    TclSetAppContext(NULL);
+    TclSetAppContext();
 
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
 	    filePtr = filePtr->nextPtr) {
@@ -571,7 +535,7 @@ DeleteFileHandler(
 	InitNotifier();
     }
 
-    TclSetAppContext(NULL);
+    TclSetAppContext();
 
     /*
      * Find the entry for the given file (and return if there isn't one).
@@ -638,7 +602,7 @@ WaitForEvent(
 	InitNotifier();
     }
 
-    TclSetAppContext(NULL);
+    TclSetAppContext();
 
     if (timePtr) {
 	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
@@ -679,7 +643,7 @@ static int wait_for_stdin(void)
     int interrupted = 0;
     int input_available = 0;
     int fd = fileno(stdin);
-    XtAppContext context = TclSetAppContext(NULL);
+    XtAppContext context = TclSetAppContext();
     XtInputId input = XtAppAddInput(context,
                                     fd,
                                     (XtPointer)XtInputReadMask,
