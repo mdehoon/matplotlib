@@ -643,9 +643,7 @@ WaitForEvent(
     if (timePtr) {
 	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
 	if (timeout == 0) {
-	    if (XtAppPending(notifier.appContext)) {
-		goto process;
-	    } else {
+	    if (XtAppPending(notifier.appContext)==0) {
 		return 0;
 	    }
 	} else {
@@ -653,7 +651,6 @@ WaitForEvent(
 	}
     }
 
-  process:
     XtAppProcessEvent(notifier.appContext, XtIMAll);
     return 1;
 }
