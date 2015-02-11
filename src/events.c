@@ -656,18 +656,11 @@ WaitForEvent(
     XtAppProcessEvent(notifier.appContext, XtIMAll);
     return 1;
 }
-
 
-static int
-Py_DoOneEvent(void)
+static void stdin_callback(XtPointer client_data, int* source, XtInputId* id)
 {
-    int oldMode = Tcl_SetServiceMode(TCL_SERVICE_ALL);
-    XtAppContext context = TclSetAppContext(NULL);
-    while (1) {
-        XtAppProcessEvent(context, XtIMAll);
-    }
-    (void) Tcl_SetServiceMode(oldMode);
-    return 0;
+    int* input_available = client_data;
+    *input_available = 1;
 }
 
 static int wait_for_stdin(void)
@@ -759,9 +752,20 @@ static int wait_for_stdin(void)
     CFReadStreamClose(stream);
     CFRelease(stream);
 #endif
-    while (1) {
-        Py_DoOneEvent();
+    int input_available = 0;
+    int fd = fileno(stdin);
+    XtAppContext context = TclSetAppContext(NULL);
+    XtInputId input = XtAppAddInput(context,
+                                    fd,
+                                    (XtPointer)XtInputReadMask,
+                                    stdin_callback,
+                                    &input_available);
+    int oldMode = Tcl_SetServiceMode(TCL_SERVICE_ALL);
+    while (!input_available) {
+        XtAppProcessEvent(context, XtIMAll);
     }
+    (void) Tcl_SetServiceMode(oldMode);
+    XtRemoveInput(input);
     return 1;
 }
 
