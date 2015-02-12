@@ -297,14 +297,10 @@ FileHandlerEventProc(
  */
 
 static void
-SetTimer(
+Py_SetTimer(
     const Tcl_Time *timePtr)		/* Timeout value, may be NULL. */
 {
     long timeout;
-
-    if (!initialized) {
-	InitNotifier();
-    }
 
     if (notifier.currentTimeout != 0) {
 	XtRemoveTimeOut(notifier.currentTimeout);
@@ -316,6 +312,16 @@ SetTimer(
     } else {
 	notifier.currentTimeout = 0;
     }
+}
+
+static void
+SetTimer(
+    const Tcl_Time *timePtr)		/* Timeout value, may be NULL. */
+{
+    if (!initialized) {
+	InitNotifier();
+    }
+    Py_SetTimer(timePtr);
 }
 
 /*
@@ -365,7 +371,7 @@ TimerProc(
  */
 
 static void
-CreateFileHandler(
+Py_CreateFileHandler(
     int fd,			/* Handle of stream to watch. */
     int mask,			/* OR'ed combination of TCL_READABLE,
 				 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
@@ -376,10 +382,6 @@ CreateFileHandler(
     ClientData clientData)	/* Arbitrary data to pass to proc. */
 {
     FileHandler *filePtr;
-
-    if (!initialized) {
-	InitNotifier();
-    }
 
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
 	    filePtr = filePtr->nextPtr) {
@@ -437,6 +439,23 @@ CreateFileHandler(
     }
     filePtr->mask = mask;
 }
+
+static void
+CreateFileHandler(
+    int fd,			/* Handle of stream to watch. */
+    int mask,			/* OR'ed combination of TCL_READABLE,
+				 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
+				 * conditions under which proc should be
+				 * called. */
+    Tcl_FileProc *proc,		/* Procedure to call for each selected
+				 * event. */
+    ClientData clientData)	/* Arbitrary data to pass to proc. */
+{
+    if (!initialized) {
+	InitNotifier();
+    }
+    Py_CreateFileHandler(fd, mask, proc, clientData);
+}
 
 /*
  *----------------------------------------------------------------------
@@ -455,15 +474,11 @@ CreateFileHandler(
  */
 
 static void
-DeleteFileHandler(
+Py_DeleteFileHandler(
     int fd)			/* Stream id for which to remove callback
 				 * procedure. */
 {
     FileHandler *filePtr, *prevPtr;
-
-    if (!initialized) {
-	InitNotifier();
-    }
 
     /*
      * Find the entry for the given file (and return if there isn't one).
@@ -499,6 +514,17 @@ DeleteFileHandler(
     }
     ckfree(filePtr);
 }
+
+static void
+DeleteFileHandler(
+    int fd)			/* Stream id for which to remove callback
+				 * procedure. */
+{
+    if (!initialized) {
+	InitNotifier();
+    }
+    Py_DeleteFileHandler(fd);
+}
 
 /*
  *----------------------------------------------------------------------
@@ -521,6 +547,19 @@ DeleteFileHandler(
  */
 
 static int
+Py_HavePendingEvents(void)
+{
+    if (XtAppPending(notifier.appContext)==0) return 0;
+    return 1;
+}
+
+static void
+Py_ProcessEvent(void)
+{
+    XtAppProcessEvent(notifier.appContext, XtIMAll);
+}
+
+static int
 WaitForEvent(
     const Tcl_Time *timePtr)		/* Maximum block time, or NULL. */
 {
@@ -533,15 +572,14 @@ WaitForEvent(
     if (timePtr) {
 	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
 	if (timeout == 0) {
-	    if (XtAppPending(notifier.appContext)==0) {
+	    if (!Py_HavePendingEvents()) {
 		return 0;
 	    }
 	} else {
 	    Tcl_SetTimer(timePtr);
 	}
     }
-
-    XtAppProcessEvent(notifier.appContext, XtIMAll);
+    Py_ProcessEvent();
     return 1;
 }
 
