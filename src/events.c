@@ -10,17 +10,6 @@
 #define PY3K 0
 #endif
 
-#if !defined(INT2PTR) && !defined(PTR2INT)
-#   if defined(HAVE_INTPTR_T) || defined(intptr_t)
-#       define INT2PTR(p) ((void *)(intptr_t)(p))
-#       define PTR2INT(p) ((int)(intptr_t)(p))
-#   else
-#       define INT2PTR(p) ((void *)(p))
-#       define PTR2INT(p) ((int)(p))
-#   endif
-#endif
-
-
 extern int TclInExit(void); /* private function? */
 
 /*
@@ -478,7 +467,7 @@ CreateFileHandler(
     if (mask & TCL_READABLE) {
 	if (!(filePtr->mask & TCL_READABLE)) {
 	    filePtr->read = XtAppAddInput(notifier.appContext, fd,
-		    INT2PTR(XtInputReadMask), FileProc, filePtr);
+		    (XtPointer) (XtInputReadMask), FileProc, filePtr);
 	}
     } else {
 	if (filePtr->mask & TCL_READABLE) {
@@ -488,7 +477,7 @@ CreateFileHandler(
     if (mask & TCL_WRITABLE) {
 	if (!(filePtr->mask & TCL_WRITABLE)) {
 	    filePtr->write = XtAppAddInput(notifier.appContext, fd,
-		    INT2PTR(XtInputWriteMask), FileProc, filePtr);
+		    (XtPointer) (XtInputWriteMask), FileProc, filePtr);
 	}
     } else {
 	if (filePtr->mask & TCL_WRITABLE) {
@@ -498,7 +487,7 @@ CreateFileHandler(
     if (mask & TCL_EXCEPTION) {
 	if (!(filePtr->mask & TCL_EXCEPTION)) {
 	    filePtr->except = XtAppAddInput(notifier.appContext, fd,
-		    INT2PTR(XtInputExceptMask), FileProc, filePtr);
+		    (XtPointer) (XtInputExceptMask), FileProc, filePtr);
 	}
     } else {
 	if (filePtr->mask & TCL_EXCEPTION) {
