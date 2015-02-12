@@ -104,8 +104,6 @@ static int              WaitForEvent(const Tcl_Time * timePtr);
 void
 InitNotifier(void)
 {
-    Tcl_NotifierProcs np;
-
     /*
      * Only reinitialize if we are not in exit handling. The notifier can get
      * reinitialized after its own exit handler has run, because of exit
@@ -115,13 +113,6 @@ InitNotifier(void)
     if (TclInExit()) {
         return;
     }
-
-    memset(&np, 0, sizeof(np));
-    np.createFileHandlerProc = CreateFileHandler;
-    np.deleteFileHandlerProc = DeleteFileHandler;
-    np.setTimerProc = SetTimer;
-    np.waitForEventProc = WaitForEvent;
-    Tcl_SetNotifier(&np);
 
     /*
      * DO NOT create the application context yet; doing so would prevent
@@ -655,19 +646,39 @@ static int wait_for_stdin(void)
 }
 
 static PyObject*
-run(PyObject* unused, PyObject* args)
+load(PyObject* unused)
 {
-    const char* filename;
-    if(!PyArg_ParseTuple(args, "s", &filename)) return NULL;
+    Tcl_NotifierProcs np;
+    memset(&np, 0, sizeof(np));
+    np.createFileHandlerProc = CreateFileHandler;
+    np.deleteFileHandlerProc = DeleteFileHandler;
+    np.setTimerProc = SetTimer;
+    np.waitForEventProc = WaitForEvent;
+    Tcl_SetNotifier(&np);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject*
+unload(PyObject* unused)
+{
+    Tcl_NotifierProcs np;
+    memset(&np, 0, sizeof(np));
+    Tcl_SetNotifier(&np);
     Py_INCREF(Py_None);
     return Py_None;
 }
 
 static struct PyMethodDef methods[] = {
-   {"run",
-    (PyCFunction)run,
-    METH_VARARGS,
-    "run a Tcl script."
+   {"load",
+    (PyCFunction)load,
+    METH_NOARGS,
+    "loads the Xt notifier"
+   },
+   {"unload",
+    (PyCFunction)unload,
+    METH_NOARGS,
+    "unloads the Xt notifier"
    },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
