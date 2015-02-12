@@ -103,6 +103,7 @@ mpl_packages = [
     setupext.BackendCairo(),
     setupext.Windowing(),
     setupext.Events(),
+    setupext.Events_tkinter(),
     'Optional LaTeX dependencies',
     setupext.DviPng(),
     setupext.Ghostscript(),

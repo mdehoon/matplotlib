@@ -1882,6 +1882,17 @@ class BackendMacOSX(OptionalBackendPackage):
         ext.extra_link_args.extend(['-framework', 'Cocoa'])
         return ext
 
+class Events_tkinter(OptionalBackendPackage):
+    name = "events_tkinter"
+    def get_extension(self):
+        sources = [
+            'src/events_tkinter.c',
+            ]
+        ext = make_extension('matplotlib.events_tkinter', sources)
+        ext.extra_link_args.extend(['-ltcl8.6'])
+        ext.extra_link_args.extend(['-ltk8.6'])
+        return ext
+
 class Events(OptionalBackendPackage):
     name = "events"
     def get_extension(self):
