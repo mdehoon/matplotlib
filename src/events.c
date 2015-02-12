@@ -48,8 +48,6 @@ typedef struct FileHandlerEvent {
                                  * the event is queued). */
 } FileHandlerEvent;
 
-static Tcl_Interp *interp;
-
 /*
  * The following static structure contains the state information for the Xt
  * based implementation of the Tcl notifier.
@@ -661,7 +659,6 @@ run(PyObject* unused, PyObject* args)
 {
     const char* filename;
     if(!PyArg_ParseTuple(args, "s", &filename)) return NULL;
-    Tcl_EvalFile(interp, filename); 
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -707,15 +704,6 @@ void initevents(void)
                             PYTHON_API_VERSION);
 #endif
     InitNotifier();
-    interp = Tcl_CreateInterp();
-    if (Tcl_Init(interp) != TCL_OK) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to initialize Tcl");
-#if PY3K
-        return NULL;
-#endif
-    }
-    Tk_Init(interp);
-
     PyOS_InputHook = wait_for_stdin;
 #if PY3K
     return module;
