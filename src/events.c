@@ -56,7 +56,6 @@ typedef struct FileHandlerEvent {
 static struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. Can be
                                  * set with TclSetAppContext. */
-    int appContextCreated;      /* Was it created by us? */
     XtIntervalId currentTimeout;/* Handle of current timer. */
     FileHandler *firstFileHandlerPtr;
                                 /* Pointer to head of file handler list. */
@@ -150,11 +149,6 @@ NotifierExitHandler(
     for (; notifier.firstFileHandlerPtr != NULL; ) {
         Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
     }
-    if (notifier.appContextCreated) {
-        XtDestroyApplicationContext(notifier.appContext);
-        notifier.appContextCreated = 0;
-        notifier.appContext = NULL;
-    }
     initialized = 0;
 }
 
@@ -180,11 +174,6 @@ TclSetAppContext(void)
 {
     if (!initialized) {
 	InitNotifier();
-    }
-
-    if (notifier.appContext == NULL) {
-        notifier.appContext = XtCreateApplicationContext();
-        notifier.appContextCreated = 1;
     }
 
     return notifier.appContext;
@@ -669,6 +658,29 @@ unload(PyObject* unused)
     return Py_None;
 }
 
+static unsigned int started = 0;
+
+static PyObject*
+start(PyObject* unused)
+{
+    if (started==0) notifier.appContext = XtCreateApplicationContext();
+    started++;
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject*
+stop(PyObject* unused)
+{
+    started--;
+    if (started==0) {
+        XtDestroyApplicationContext(notifier.appContext);
+        notifier.appContext = NULL;
+    }
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 static struct PyMethodDef methods[] = {
    {"load",
     (PyCFunction)load,
@@ -679,6 +691,16 @@ static struct PyMethodDef methods[] = {
     (PyCFunction)unload,
     METH_NOARGS,
     "unloads the Xt notifier"
+   },
+   {"start",
+    (PyCFunction)start,
+    METH_NOARGS,
+    "starts the Xt event loop"
+   },
+   {"stop",
+    (PyCFunction)stop,
+    METH_NOARGS,
+    "stops the Xt event loop"
    },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
