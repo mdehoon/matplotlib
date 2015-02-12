@@ -54,8 +54,7 @@ typedef struct FileHandlerEvent {
  */
 
 static struct NotifierState {
-    XtAppContext appContext;    /* The context used by the Xt notifier. Can be
-                                 * set with TclSetAppContext. */
+    XtAppContext appContext;    /* The context used by the Xt notifier. */
     XtIntervalId currentTimeout;/* Handle of current timer. */
     FileHandler *firstFileHandlerPtr;
                                 /* Pointer to head of file handler list. */
@@ -113,11 +112,6 @@ InitNotifier(void)
         return;
     }
 
-    /*
-     * DO NOT create the application context yet; doing so would prevent
-     * external applications from setting it for us to their own ones.
-     */
-
     initialized = 1;
     Tcl_CreateExitHandler(NotifierExitHandler, NULL);
 }
@@ -151,34 +145,6 @@ NotifierExitHandler(
     }
     initialized = 0;
 }
-
-/*
- *----------------------------------------------------------------------
- *
- * TclSetAppContext --
- *
- *	Set the notifier application context.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Sets the application context used by the notifier. Panics if the
- *	context is already set when called.
- *
- *----------------------------------------------------------------------
- */
-
-XtAppContext
-TclSetAppContext(void)
-{
-    if (!initialized) {
-	InitNotifier();
-    }
-
-    return notifier.appContext;
-}
-
 /*
  *----------------------------------------------------------------------
  *
@@ -340,7 +306,6 @@ SetTimer(
 	InitNotifier();
     }
 
-    TclSetAppContext();
     if (notifier.currentTimeout != 0) {
 	XtRemoveTimeOut(notifier.currentTimeout);
     }
@@ -415,8 +380,6 @@ CreateFileHandler(
     if (!initialized) {
 	InitNotifier();
     }
-
-    TclSetAppContext();
 
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
 	    filePtr = filePtr->nextPtr) {
@@ -502,8 +465,6 @@ DeleteFileHandler(
 	InitNotifier();
     }
 
-    TclSetAppContext();
-
     /*
      * Find the entry for the given file (and return if there isn't one).
      */
@@ -569,8 +530,6 @@ WaitForEvent(
 	InitNotifier();
     }
 
-    TclSetAppContext();
-
     if (timePtr) {
 	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
 	if (timeout == 0) {
@@ -610,7 +569,12 @@ static int wait_for_stdin(void)
     int interrupted = 0;
     int input_available = 0;
     int fd = fileno(stdin);
-    XtAppContext context = TclSetAppContext();
+    XtAppContext context;
+    if (!initialized) {
+	InitNotifier();
+    }
+
+    context =  notifier.appContext;
     XtInputId input = XtAppAddInput(context,
                                     fd,
                                     (XtPointer)XtInputReadMask,
