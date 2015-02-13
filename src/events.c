@@ -298,32 +298,30 @@ FileHandlerEventProc(
  *----------------------------------------------------------------------
  */
 
-static void
-Py_SetTimer(
-    const Tcl_Time *timePtr)		/* Timeout value, may be NULL. */
+static XtIntervalId
+Py_SetTimer(unsigned long timeout)
 {
-    long timeout;
-
-    if (notifier.currentTimeout != 0) {
-	XtRemoveTimeOut(notifier.currentTimeout);
-    }
-    if (timePtr) {
-	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-	notifier.currentTimeout = XtAppAddTimeOut(notifier.appContext,
-		(unsigned long) timeout, TimerProc, NULL);
-    } else {
-	notifier.currentTimeout = 0;
-    }
+    return XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, NULL);
 }
 
 static void
 SetTimer(
     const Tcl_Time *timePtr)		/* Timeout value, may be NULL. */
 {
+    long timeout;
     if (!initialized) {
 	InitNotifier();
     }
-    Py_SetTimer(timePtr);
+
+    if (notifier.currentTimeout != 0) {
+	XtRemoveTimeOut(notifier.currentTimeout);
+    }
+    if (timePtr) {
+	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
+        notifier.currentTimeout = Py_SetTimer((unsigned long) timeout);
+    } else {
+	notifier.currentTimeout = 0;
+    }
 }
 
 /*
