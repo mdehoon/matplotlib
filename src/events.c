@@ -1,6 +1,8 @@
 #include <signal.h>
 #include <X11/Intrinsic.h>
 #include <Python.h>
+#define EVENTS_MODULE
+#include "events.h"
 #include <tcl.h>
 #include <tk.h>
 
@@ -683,7 +685,30 @@ stop(PyObject* unused)
     return Py_None;
 }
 
+static int
+PyEvents_System(const char *command)
+{
+    return system(command);
+}
+
+static PyObject *
+events_system(PyObject *self, PyObject *args)
+{
+    const char *command;
+    int sts;
+
+    if (!PyArg_ParseTuple(args, "s", &command))
+        return NULL;
+    sts = PyEvents_System(command);
+    return Py_BuildValue("i", sts);
+}
+
 static struct PyMethodDef methods[] = {
+   {"system",
+    (PyCFunction)events_system,
+    METH_VARARGS,
+    "system call"
+   },
    {"load",
     (PyCFunction)load,
     METH_NOARGS,
@@ -728,6 +753,8 @@ void initevents(void)
 #endif
 {
     PyObject *module;
+    static void *PyEvents_API[PyEvents_API_pointers];
+    PyObject* c_api_object;
 #if PY3K
     module = PyModule_Create(&moduledef);
     if (module==NULL) return NULL;
@@ -737,7 +764,11 @@ void initevents(void)
                             "events module",
                             NULL,
                             PYTHON_API_VERSION);
+    if (module==NULL) return;
 #endif
+    c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
+    if (c_api_object != NULL)
+        PyModule_AddObject(module, "_C_API", c_api_object);
     InitNotifier();
     PyOS_InputHook = wait_for_stdin;
 #if PY3K
