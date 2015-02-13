@@ -1,4 +1,5 @@
 #include <Python.h>
+#include "events.h"
 
 #if PY_MAJOR_VERSION >= 3
 #define PY3K 1
@@ -6,7 +7,24 @@
 #define PY3K 0
 #endif
 
+static PyObject *
+events_system(PyObject *self, PyObject *args)
+{
+    const char *command;
+    int sts;
+
+    if (!PyArg_ParseTuple(args, "s", &command))
+        return NULL;
+    sts = PyEvents_System(command);
+    return Py_BuildValue("i", sts);
+}
+
 static struct PyMethodDef methods[] = {
+   {"system",
+    (PyCFunction)events_system,
+    METH_VARARGS,
+    "system call"
+   },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
@@ -41,6 +59,13 @@ void initevents_tkinter(void)
                             NULL,
                             PYTHON_API_VERSION);
 #endif
+    if (import_events() < 0)
+#if PY3K
+        return NULL;
+#else
+        return;
+#endif
+    
 #if PY3K
     return module;
 #endif
