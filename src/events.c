@@ -77,11 +77,11 @@ static void             FileProc(XtPointer clientData, int *source,
                             XtInputId *id);
 static void             NotifierExitHandler(ClientData clientData);
 static void             TimerProc(XtPointer clientData, XtIntervalId *id);
-static void             CreateFileHandler(int fd, int mask,
+void             CreateFileHandler(int fd, int mask,
                             Tcl_FileProc *proc, ClientData clientData);
-static void             DeleteFileHandler(int fd);
-static void             SetTimer(const Tcl_Time * timePtr);
-static int              WaitForEvent(const Tcl_Time * timePtr);
+void             DeleteFileHandler(int fd);
+void             SetTimer(const Tcl_Time * timePtr);
+int              WaitForEvent(const Tcl_Time * timePtr);
 
 
 
@@ -310,7 +310,7 @@ FileHandlerEventProc(
  *----------------------------------------------------------------------
  */
 
-static void
+void
 SetTimer(
     const Tcl_Time *timePtr)		/* Timeout value, may be NULL. */
 {
@@ -446,7 +446,7 @@ Py_CreateFileHandler(
     filePtr->mask = mask;
 }
 
-static void
+void
 CreateFileHandler(
     int fd,			/* Handle of stream to watch. */
     int mask,			/* OR'ed combination of TCL_READABLE,
@@ -521,7 +521,7 @@ Py_DeleteFileHandler(
     ckfree(filePtr);
 }
 
-static void
+void
 DeleteFileHandler(
     int fd)			/* Stream id for which to remove callback
 				 * procedure. */
@@ -565,7 +565,7 @@ Py_ProcessEvent(void)
     XtAppProcessEvent(notifier.appContext, XtIMAll);
 }
 
-static int
+int
 WaitForEvent(
     const Tcl_Time *timePtr)		/* Maximum block time, or NULL. */
 {
@@ -641,30 +641,6 @@ static int wait_for_stdin(void)
     return 1;
 }
 
-static PyObject*
-load(PyObject* unused)
-{
-    Tcl_NotifierProcs np;
-    memset(&np, 0, sizeof(np));
-    np.createFileHandlerProc = CreateFileHandler;
-    np.deleteFileHandlerProc = DeleteFileHandler;
-    np.setTimerProc = SetTimer;
-    np.waitForEventProc = WaitForEvent;
-    Tcl_SetNotifier(&np);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject*
-unload(PyObject* unused)
-{
-    Tcl_NotifierProcs np;
-    memset(&np, 0, sizeof(np));
-    Tcl_SetNotifier(&np);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
 static unsigned int started = 0;
 
 static PyObject*
@@ -713,16 +689,6 @@ static struct PyMethodDef methods[] = {
     (PyCFunction)events_system,
     METH_VARARGS,
     "system call"
-   },
-   {"load",
-    (PyCFunction)load,
-    METH_NOARGS,
-    "loads the Xt notifier"
-   },
-   {"unload",
-    (PyCFunction)unload,
-    METH_NOARGS,
-    "unloads the Xt notifier"
    },
    {"start",
     (PyCFunction)start,
