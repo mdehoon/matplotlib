@@ -617,7 +617,6 @@ static int wait_for_stdin(void)
     if (!initialized) {
 	InitNotifier();
     }
-
     context =  notifier.appContext;
     XtInputId input = XtAppAddInput(context,
                                     fd,
@@ -671,10 +670,12 @@ static unsigned int started = 0;
 static PyObject*
 start(PyObject* unused)
 {
-    if (started==0) notifier.appContext = XtCreateApplicationContext();
+    if (started==0) {
+        notifier.appContext = XtCreateApplicationContext();
+        PyOS_InputHook = wait_for_stdin;
+    }
     started++;
-    Py_INCREF(Py_None);
-    return Py_None;
+    return PyLong_FromLong(started);
 }
 
 static PyObject*
@@ -684,9 +685,9 @@ stop(PyObject* unused)
     if (started==0) {
         XtDestroyApplicationContext(notifier.appContext);
         notifier.appContext = NULL;
+        PyOS_InputHook = NULL;
     }
-    Py_INCREF(Py_None);
-    return Py_None;
+    return PyLong_FromLong(started);
 }
 
 static int
@@ -774,7 +775,6 @@ void initevents(void)
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
     InitNotifier();
-    PyOS_InputHook = wait_for_stdin;
 #if PY3K
     return module;
 #endif
