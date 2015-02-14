@@ -1888,7 +1888,7 @@ class Events_tkinter(OptionalBackendPackage):
         sources = [
             'src/events_tkinter.c',
             ]
-        ext = make_extension('matplotlib.events_tkinter', sources)
+        ext = make_extension('events_tkinter', sources)
         ext.extra_link_args.extend(['-ltcl8.6'])
         ext.extra_link_args.extend(['-ltk8.6'])
         return ext
@@ -1899,7 +1899,7 @@ class Events(OptionalBackendPackage):
         sources = [
             'src/events.c',
             ]
-        ext = make_extension('matplotlib.events', sources)
+        ext = make_extension('events', sources)
         ext.extra_link_args.extend(['-ltcl8.6'])
         ext.extra_link_args.extend(['-ltk8.6'])
         ext.extra_link_args.extend(['-lXt'])
