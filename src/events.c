@@ -117,7 +117,19 @@ InitNotifier(void)
     initialized = 1;
     Tcl_CreateExitHandler(NotifierExitHandler, NULL);
 }
-
+
+static XtIntervalId
+Py_AddTimer(unsigned long timeout)
+{
+    return XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, NULL);
+}
+
+static void
+Py_RemoveTimer(XtIntervalId timer)
+{
+    return XtRemoveTimeOut(timer);
+}
+
 /*
  *----------------------------------------------------------------------
  *
@@ -140,7 +152,7 @@ NotifierExitHandler(
     ClientData clientData)      /* Not used. */
 {
     if (notifier.currentTimeout != 0) {
-        XtRemoveTimeOut(notifier.currentTimeout);
+        Py_RemoveTimer(notifier.currentTimeout);
     }
     for (; notifier.firstFileHandlerPtr != NULL; ) {
         Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
@@ -298,12 +310,6 @@ FileHandlerEventProc(
  *----------------------------------------------------------------------
  */
 
-static XtIntervalId
-Py_SetTimer(unsigned long timeout)
-{
-    return XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, NULL);
-}
-
 static void
 SetTimer(
     const Tcl_Time *timePtr)		/* Timeout value, may be NULL. */
@@ -314,16 +320,16 @@ SetTimer(
     }
 
     if (notifier.currentTimeout != 0) {
-	XtRemoveTimeOut(notifier.currentTimeout);
+	Py_RemoveTimer(notifier.currentTimeout);
     }
     if (timePtr) {
 	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-        notifier.currentTimeout = Py_SetTimer((unsigned long) timeout);
+        notifier.currentTimeout = Py_AddTimer((unsigned long) timeout);
     } else {
 	notifier.currentTimeout = 0;
     }
 }
-
+
 /*
  *----------------------------------------------------------------------
  *
