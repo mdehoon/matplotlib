@@ -1,4 +1,6 @@
 #include <Python.h>
+#include <X11/Intrinsic.h>
+
 #include <tcl.h>
 #include "events.h"
 
@@ -11,10 +13,57 @@
 extern void             CreateFileHandler(int fd, int mask,
                             Tcl_FileProc *proc, ClientData clientData);
 extern void             DeleteFileHandler(int fd);
-extern void             SetTimer(const Tcl_Time * timePtr);
 extern int              WaitForEvent(const Tcl_Time * timePtr);
 
+extern int initialized;
 
+extern void InitNotifier(void);
+
+extern struct NotifierState {
+    XtAppContext appContext;    /* The context used by the Xt notifier. */
+    XtIntervalId currentTimeout;/* Handle of current timer. */
+    void* *firstFileHandlerPtr;
+                                /* Pointer to head of file handler list. */
+} notifier;
+
+
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * SetTimer --
+ *
+ *      This procedure sets the current notifier timeout value.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      Replaces any previous timer.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+SetTimer(
+    const Tcl_Time *timePtr)            /* Timeout value, may be NULL. */
+{
+    long timeout;
+    if (!initialized) {
+        InitNotifier();
+    }
+
+    if (notifier.currentTimeout != 0) {
+        PyEvents_RemoveTimer(notifier.currentTimeout);
+    }
+    if (timePtr) {
+        timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
+        notifier.currentTimeout = PyEvents_AddTimer((unsigned long) timeout);
+    } else {
+        notifier.currentTimeout = 0;
+    }
+}
 
 static PyObject *
 events_system(PyObject *self, PyObject *args)

@@ -34,6 +34,8 @@ static void **PyEvents_API;
  (*(PyEvents_System_RETURN (*)PyEvents_System_PROTO) PyEvents_API[PyEvents_System_NUM])
 #define PyEvents_AddTimer \
  (*(PyEvents_AddTimer_RETURN (*)PyEvents_AddTimer_PROTO) PyEvents_API[PyEvents_AddTimer_NUM])
+#define PyEvents_RemoveTimer \
+ (*(PyEvents_RemoveTimer_RETURN (*)PyEvents_RemoveTimer_PROTO) PyEvents_API[PyEvents_RemoveTimer_NUM])
 
 /* Return -1 on error, 0 on success.
  * PyCapsule_Import will set an exception if there's an error.

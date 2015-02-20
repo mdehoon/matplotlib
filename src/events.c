@@ -55,7 +55,7 @@ typedef struct FileHandlerEvent {
  * based implementation of the Tcl notifier.
  */
 
-static struct NotifierState {
+struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
     XtIntervalId currentTimeout;/* Handle of current timer. */
     FileHandler *firstFileHandlerPtr;
@@ -66,7 +66,7 @@ static struct NotifierState {
  * The following static indicates whether this module has been initialized.
  */
 
-static int initialized = 0;
+int initialized = 0;
 
 /*
  * Static routines defined in this file.
@@ -80,7 +80,6 @@ static void             TimerProc(XtPointer clientData, XtIntervalId *id);
 void             CreateFileHandler(int fd, int mask,
                             Tcl_FileProc *proc, ClientData clientData);
 void             DeleteFileHandler(int fd);
-void             SetTimer(const Tcl_Time * timePtr);
 int              WaitForEvent(const Tcl_Time * timePtr);
 
 
@@ -294,41 +293,6 @@ FileHandlerEventProc(
     return 1;
 }
 
-/*
- *----------------------------------------------------------------------
- *
- * SetTimer --
- *
- *	This procedure sets the current notifier timeout value.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Replaces any previous timer.
- *
- *----------------------------------------------------------------------
- */
-
-void
-SetTimer(
-    const Tcl_Time *timePtr)		/* Timeout value, may be NULL. */
-{
-    long timeout;
-    if (!initialized) {
-	InitNotifier();
-    }
-
-    if (notifier.currentTimeout != 0) {
-	PyEvents_RemoveTimer(notifier.currentTimeout);
-    }
-    if (timePtr) {
-	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-        notifier.currentTimeout = PyEvents_AddTimer((unsigned long) timeout);
-    } else {
-	notifier.currentTimeout = 0;
-    }
-}
 
 /*
  *----------------------------------------------------------------------
@@ -737,6 +701,8 @@ void initevents(void)
                             PYTHON_API_VERSION);
     if (module==NULL) return;
 #endif
+    PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
+    PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
