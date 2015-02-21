@@ -120,6 +120,7 @@ InitNotifier(void)
 typedef struct {
     PyObject_HEAD
     XtIntervalId timer;
+    void(*callback)(PyObject*);
 } TimerObject;
 
 static PyTypeObject TimerType = {
@@ -166,6 +167,7 @@ PyEvents_AddTimer(unsigned long timeout)
     object = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
     timer = XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, object);
     object->timer = timer;
+    object->callback = TclTimerProc;
     return (PyObject*)object;
 }
 
@@ -367,13 +369,15 @@ FileHandlerEventProc(
 static void
 TimerProc(XtPointer clientData, XtIntervalId *id)
 {
+    void(*callback)(PyObject*);
     TimerObject* object = (TimerObject*)clientData;
     if (object->timer != *id) {
         /* this is not supposed to happen */
         return;
     }
     object->timer = 0;
-    TclTimerProc((PyObject*)object);
+    callback = object->callback;
+    callback((PyObject*)object);
 }
 
 /*
