@@ -13,9 +13,15 @@
 #define PyEvents_RemoveTimer_NUM 2
 #define PyEvents_RemoveTimer_RETURN void
 #define PyEvents_RemoveTimer_PROTO (PyObject* timer)
+#define PyEvents_ProcessEvent_NUM 3
+#define PyEvents_ProcessEvent_RETURN void
+#define PyEvents_ProcessEvent_PROTO (void)
+#define PyEvents_HavePendingEvents_NUM 4
+#define PyEvents_HavePendingEvents_RETURN int
+#define PyEvents_HavePendingEvents_PROTO (void)
 
 /* Total number of C API pointers */
-#define PyEvents_API_pointers 3
+#define PyEvents_API_pointers 5
 
 
 #ifdef EVENTS_MODULE
@@ -24,6 +30,8 @@
 static PyEvents_System_RETURN PyEvents_System PyEvents_System_PROTO;
 static PyEvents_AddTimer_RETURN PyEvents_AddTimer PyEvents_AddTimer_PROTO;
 static PyEvents_RemoveTimer_RETURN PyEvents_RemoveTimer PyEvents_RemoveTimer_PROTO;
+static PyEvents_ProcessEvent_RETURN PyEvents_ProcessEvent PyEvents_ProcessEvent_PROTO;
+static PyEvents_HavePendingEvents_RETURN PyEvents_HavePendingEvents PyEvents_HavePendingEvents_PROTO;
 
 #else
 /* This section is used in modules that use the API */
@@ -36,6 +44,10 @@ static void **PyEvents_API;
  (*(PyEvents_AddTimer_RETURN (*)PyEvents_AddTimer_PROTO) PyEvents_API[PyEvents_AddTimer_NUM])
 #define PyEvents_RemoveTimer \
  (*(PyEvents_RemoveTimer_RETURN (*)PyEvents_RemoveTimer_PROTO) PyEvents_API[PyEvents_RemoveTimer_NUM])
+#define PyEvents_ProcessEvent \
+ (*(PyEvents_ProcessEvent_RETURN (*)PyEvents_ProcessEvent_PROTO) PyEvents_API[PyEvents_ProcessEvent_NUM])
+#define PyEvents_HavePendingEvents \
+ (*(PyEvents_HavePendingEvents_RETURN (*)PyEvents_HavePendingEvents_PROTO) PyEvents_API[PyEvents_HavePendingEvents_NUM])
 
 /* Return -1 on error, 0 on success.
  * PyCapsule_Import will set an exception if there's an error.

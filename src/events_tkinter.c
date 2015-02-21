@@ -13,7 +13,6 @@
 extern void             CreateFileHandler(int fd, int mask,
                             Tcl_FileProc *proc, ClientData clientData);
 extern void             DeleteFileHandler(int fd);
-extern int              WaitForEvent(const Tcl_Time * timePtr);
 
 extern int initialized;
 
@@ -26,8 +25,46 @@ extern struct NotifierState {
                                 /* Pointer to head of file handler list. */
 } notifier;
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * WaitForEvent --
+ *
+ *      This function is called by Tcl_DoOneEvent to wait for new events on
+ *      the message queue. If the block time is 0, then Tcl_WaitForEvent just
+ *      polls without blocking.
+ *
+ * Results:
+ *      Returns 1 if an event was found, else 0. This ensures that
+ *      Tcl_DoOneEvent will return 1, even if the event is handled by non-Tcl
+ *      code.
+ *
+ * Side effects:
+ *      Queues file events that are detected by the select.
+ *
+ *----------------------------------------------------------------------
+ */
 
-
+static int
+WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
+{
+    int timeout;
+    if (!initialized) {
+        InitNotifier();
+    }
+    if (timePtr) {
+        timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
+        if (timeout == 0) {
+            if (!PyEvents_HavePendingEvents()) {
+                return 0;
+            }
+        } else {
+            Tcl_SetTimer(timePtr);
+        }
+    }
+    PyEvents_ProcessEvent();
+    return 1;
+}
 
 /*
  *----------------------------------------------------------------------

@@ -543,61 +543,17 @@ DeleteFileHandler(
     Py_DeleteFileHandler(fd);
 }
 
-/*
- *----------------------------------------------------------------------
- *
- * WaitForEvent --
- *
- *	This function is called by Tcl_DoOneEvent to wait for new events on
- *	the message queue. If the block time is 0, then Tcl_WaitForEvent just
- *	polls without blocking.
- *
- * Results:
- *	Returns 1 if an event was found, else 0. This ensures that
- *	Tcl_DoOneEvent will return 1, even if the event is handled by non-Tcl
- *	code.
- *
- * Side effects:
- *	Queues file events that are detected by the select.
- *
- *----------------------------------------------------------------------
- */
-
 static int
-Py_HavePendingEvents(void)
+PyEvents_HavePendingEvents(void)
 {
     if (XtAppPending(notifier.appContext)==0) return 0;
     return 1;
 }
 
 static void
-Py_ProcessEvent(void)
+PyEvents_ProcessEvent(void)
 {
     XtAppProcessEvent(notifier.appContext, XtIMAll);
-}
-
-int
-WaitForEvent(
-    const Tcl_Time *timePtr)		/* Maximum block time, or NULL. */
-{
-    int timeout;
-
-    if (!initialized) {
-	InitNotifier();
-    }
-
-    if (timePtr) {
-	timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-	if (timeout == 0) {
-	    if (!Py_HavePendingEvents()) {
-		return 0;
-	    }
-	} else {
-	    Tcl_SetTimer(timePtr);
-	}
-    }
-    Py_ProcessEvent();
-    return 1;
 }
 
 static void stdin_callback(XtPointer client_data, int* source, XtInputId* id)
@@ -752,6 +708,8 @@ void initevents(void)
     if (module==NULL) goto error;
     PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
+    PyEvents_API[PyEvents_ProcessEvent_NUM] = (void *)PyEvents_ProcessEvent;
+    PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
