@@ -148,17 +148,6 @@ static PyTypeObject TimerType = {
     "Timer object",            /*tp_doc */
 };
 
-void TclTimerProc(PyObject* timer)
-{
-    if (timer != notifier.currentTimeout) {
-        /* this is not supposed to happen */
-	return;
-    }
-    Py_DECREF(notifier.currentTimeout);
-    notifier.currentTimeout = NULL;
-    Tcl_ServiceAll();
-}
-
 static PyObject*
 PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
 {
@@ -208,6 +197,7 @@ NotifierExitHandler(
 {
     if (notifier.currentTimeout != 0) {
         PyEvents_RemoveTimer(notifier.currentTimeout);
+        Py_DECREF(notifier.currentTimeout);
     }
     for (; notifier.firstFileHandlerPtr != NULL; ) {
         Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
