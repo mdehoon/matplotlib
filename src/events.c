@@ -358,12 +358,14 @@ TimerProc( XtPointer clientData, XtIntervalId *id)
 {
     TimerObject* object = (TimerObject*)clientData;
     if (object->timer != *id) {
+        /* this is not supposed to happen */
         return;
     }
     object->timer = 0;
     if ((PyObject*)object != notifier.currentTimeout) {
 	return;
     }
+    Py_DECREF(notifier.currentTimeout);
     notifier.currentTimeout = NULL;
 
     Tcl_ServiceAll();
