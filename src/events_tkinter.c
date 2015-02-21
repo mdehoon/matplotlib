@@ -114,18 +114,6 @@ SetTimer(
     }
 }
 
-static PyObject *
-events_system(PyObject *self, PyObject *args)
-{
-    const char *command;
-    int sts;
-
-    if (!PyArg_ParseTuple(args, "s", &command))
-        return NULL;
-    sts = PyEvents_System(command);
-    return Py_BuildValue("i", sts);
-}
-
 static PyObject*
 load(PyObject* unused)
 {
@@ -151,11 +139,6 @@ unload(PyObject* unused)
 }
 
 static struct PyMethodDef methods[] = {
-   {"system",
-    (PyCFunction)events_system,
-    METH_VARARGS,
-    "system call"
-   },
    {"load",
     (PyCFunction)load,
     METH_NOARGS,

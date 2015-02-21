@@ -633,30 +633,7 @@ stop(PyObject* unused)
     return PyLong_FromLong(started);
 }
 
-static int
-PyEvents_System(const char *command)
-{
-    return system(command);
-}
-
-static PyObject *
-events_system(PyObject *self, PyObject *args)
-{
-    const char *command;
-    int sts;
-
-    if (!PyArg_ParseTuple(args, "s", &command))
-        return NULL;
-    sts = PyEvents_System(command);
-    return Py_BuildValue("i", sts);
-}
-
 static struct PyMethodDef methods[] = {
-   {"system",
-    (PyCFunction)events_system,
-    METH_VARARGS,
-    "system call"
-   },
    {"start",
     (PyCFunction)start,
     METH_NOARGS,

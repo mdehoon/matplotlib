@@ -4,30 +4,26 @@
 /* Header file for events */
 
 /* C API functions */
-#define PyEvents_System_NUM 0
-#define PyEvents_System_RETURN int
-#define PyEvents_System_PROTO (const char *command)
-#define PyEvents_AddTimer_NUM 1
+#define PyEvents_AddTimer_NUM 0
 #define PyEvents_AddTimer_RETURN PyObject*
 #define PyEvents_AddTimer_PROTO (unsigned long timeout, void(*callback)(PyObject*))
-#define PyEvents_RemoveTimer_NUM 2
+#define PyEvents_RemoveTimer_NUM 1
 #define PyEvents_RemoveTimer_RETURN void
 #define PyEvents_RemoveTimer_PROTO (PyObject* timer)
-#define PyEvents_ProcessEvent_NUM 3
+#define PyEvents_ProcessEvent_NUM 2
 #define PyEvents_ProcessEvent_RETURN void
 #define PyEvents_ProcessEvent_PROTO (void)
-#define PyEvents_HavePendingEvents_NUM 4
+#define PyEvents_HavePendingEvents_NUM 3
 #define PyEvents_HavePendingEvents_RETURN int
 #define PyEvents_HavePendingEvents_PROTO (void)
 
 /* Total number of C API pointers */
-#define PyEvents_API_pointers 5
+#define PyEvents_API_pointers 4
 
 
 #ifdef EVENTS_MODULE
 /* This section is used when compiling events.c */
 
-static PyEvents_System_RETURN PyEvents_System PyEvents_System_PROTO;
 static PyEvents_AddTimer_RETURN PyEvents_AddTimer PyEvents_AddTimer_PROTO;
 static PyEvents_RemoveTimer_RETURN PyEvents_RemoveTimer PyEvents_RemoveTimer_PROTO;
 static PyEvents_ProcessEvent_RETURN PyEvents_ProcessEvent PyEvents_ProcessEvent_PROTO;
