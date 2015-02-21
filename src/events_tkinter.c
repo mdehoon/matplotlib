@@ -66,6 +66,17 @@ WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
     return 1;
 }
 
+static void TimerProc(PyObject* timer)
+{
+    if (timer != notifier.currentTimeout) {
+        /* this is not supposed to happen */
+        return;
+    }
+    Py_DECREF(notifier.currentTimeout);
+    notifier.currentTimeout = NULL;
+    Tcl_ServiceAll();
+}
+
 /*
  *----------------------------------------------------------------------
  *
@@ -81,17 +92,6 @@ WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
  *
  *----------------------------------------------------------------------
  */
-
-static void TimerProc(PyObject* timer)
-{
-    if (timer != notifier.currentTimeout) {
-        /* this is not supposed to happen */
-        return;
-    }
-    Py_DECREF(notifier.currentTimeout);
-    notifier.currentTimeout = NULL;
-    Tcl_ServiceAll();
-}
 
 static void
 SetTimer(

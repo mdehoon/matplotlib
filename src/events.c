@@ -76,11 +76,9 @@ static int              FileHandlerEventProc(Tcl_Event *evPtr, int flags);
 static void             FileProc(XtPointer clientData, int *source,
                             XtInputId *id);
 static void             NotifierExitHandler(ClientData clientData);
-static void             TimerProc(XtPointer clientData, XtIntervalId *id);
 void             CreateFileHandler(int fd, int mask,
                             Tcl_FileProc *proc, ClientData clientData);
 void             DeleteFileHandler(int fd);
-int              WaitForEvent(const Tcl_Time * timePtr);
 
 
 
@@ -147,6 +145,20 @@ static PyTypeObject TimerType = {
     Py_TPFLAGS_DEFAULT,        /*tp_flags*/
     "Timer object",            /*tp_doc */
 };
+
+static void
+TimerProc(XtPointer clientData, XtIntervalId *id)
+{
+    void(*callback)(PyObject*);
+    TimerObject* object = (TimerObject*)clientData;
+    if (object->timer != *id) {
+        /* this is not supposed to happen */
+        return;
+    }
+    object->timer = 0;
+    callback = object->callback;
+    callback((PyObject*)object);
+}
 
 static PyObject*
 PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
@@ -338,38 +350,6 @@ FileHandlerEventProc(
     }
     return 1;
 }
-
-
-/*
- *----------------------------------------------------------------------
- *
- * TimerProc --
- *
- *	This procedure is the XtTimerCallbackProc used to handle timeouts.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Processes all queued events.
- *
- *----------------------------------------------------------------------
- */
-
-static void
-TimerProc(XtPointer clientData, XtIntervalId *id)
-{
-    void(*callback)(PyObject*);
-    TimerObject* object = (TimerObject*)clientData;
-    if (object->timer != *id) {
-        /* this is not supposed to happen */
-        return;
-    }
-    object->timer = 0;
-    callback = object->callback;
-    callback((PyObject*)object);
-}
-
 /*
  *----------------------------------------------------------------------
  *
