@@ -10,10 +10,6 @@
 #define PY3K 0
 #endif
 
-extern void             CreateFileHandler(int fd, int mask,
-                            Tcl_FileProc *proc, ClientData clientData);
-extern void             DeleteFileHandler(int fd);
-
 extern int initialized;
 
 extern void InitNotifier(void);
@@ -112,6 +108,66 @@ SetTimer(
     } else {
         notifier.currentTimeout = NULL;
     }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * CreateFileHandler --
+ *
+ *      This procedure registers a file handler with the Xt notifier.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      Creates a new file handler structure and registers one or more input
+ *      procedures with Xt.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+CreateFileHandler(
+    int fd,                     /* Handle of stream to watch. */
+    int mask,                   /* OR'ed combination of TCL_READABLE,
+                                 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
+                                 * conditions under which proc should be
+                                 * called. */
+    Tcl_FileProc *proc,         /* Procedure to call for each selected
+                                 * event. */
+    ClientData clientData)      /* Arbitrary data to pass to proc. */
+{
+    if (!initialized) {
+        InitNotifier();
+    }
+    PyEvents_CreateFileHandler(fd, mask, proc, clientData);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * DeleteFileHandler --
+ *
+ *      Cancel a previously-arranged callback arrangement for a file.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      If a callback was previously registered on file, remove it.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+DeleteFileHandler(int fd)       /* Stream id for which to remove callback
+                                 * procedure. */
+{
+    if (!initialized) {
+        InitNotifier();
+    }
+    PyEvents_DeleteFileHandler(fd);
 }
 
 static PyObject*

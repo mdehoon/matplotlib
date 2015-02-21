@@ -16,9 +16,15 @@
 #define PyEvents_HavePendingEvents_NUM 3
 #define PyEvents_HavePendingEvents_RETURN int
 #define PyEvents_HavePendingEvents_PROTO (void)
+#define PyEvents_CreateFileHandler_NUM 4
+#define PyEvents_CreateFileHandler_RETURN void
+#define PyEvents_CreateFileHandler_PROTO (int fd, int mask, void(*proc)(void*, int), void* data)
+#define PyEvents_DeleteFileHandler_NUM 5
+#define PyEvents_DeleteFileHandler_RETURN void
+#define PyEvents_DeleteFileHandler_PROTO (int fd)
 
 /* Total number of C API pointers */
-#define PyEvents_API_pointers 4
+#define PyEvents_API_pointers 6
 
 
 #ifdef EVENTS_MODULE
@@ -28,6 +34,8 @@ static PyEvents_AddTimer_RETURN PyEvents_AddTimer PyEvents_AddTimer_PROTO;
 static PyEvents_RemoveTimer_RETURN PyEvents_RemoveTimer PyEvents_RemoveTimer_PROTO;
 static PyEvents_ProcessEvent_RETURN PyEvents_ProcessEvent PyEvents_ProcessEvent_PROTO;
 static PyEvents_HavePendingEvents_RETURN PyEvents_HavePendingEvents PyEvents_HavePendingEvents_PROTO;
+static PyEvents_CreateFileHandler_RETURN PyEvents_CreateFileHandler PyEvents_CreateFileHandler_PROTO;
+static PyEvents_DeleteFileHandler_RETURN PyEvents_DeleteFileHandler PyEvents_DeleteFileHandler_PROTO;
 
 #else
 /* This section is used in modules that use the API */
@@ -44,6 +52,10 @@ static void **PyEvents_API;
  (*(PyEvents_ProcessEvent_RETURN (*)PyEvents_ProcessEvent_PROTO) PyEvents_API[PyEvents_ProcessEvent_NUM])
 #define PyEvents_HavePendingEvents \
  (*(PyEvents_HavePendingEvents_RETURN (*)PyEvents_HavePendingEvents_PROTO) PyEvents_API[PyEvents_HavePendingEvents_NUM])
+#define PyEvents_CreateFileHandler \
+ (*(PyEvents_CreateFileHandler_RETURN (*)PyEvents_CreateFileHandler_PROTO) PyEvents_API[PyEvents_CreateFileHandler_NUM])
+#define PyEvents_DeleteFileHandler \
+ (*(PyEvents_DeleteFileHandler_RETURN (*)PyEvents_DeleteFileHandler_PROTO) PyEvents_API[PyEvents_DeleteFileHandler_NUM])
 
 /* Return -1 on error, 0 on success.
  * PyCapsule_Import will set an exception if there's an error.

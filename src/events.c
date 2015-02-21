@@ -29,9 +29,8 @@ typedef struct FileHandler {
     XtInputId read;		/* Xt read callback handle. */
     XtInputId write;		/* Xt write callback handle. */
     XtInputId except;		/* Xt exception callback handle. */
-    Tcl_FileProc *proc;		/* Procedure to call, in the style of
-				 * Tcl_CreateFileHandler. */
-    ClientData clientData;	/* Argument to pass to proc. */
+    void(*proc)(void*, int);	/* Procedure to call */
+    void* clientData;		/* Argument to pass to proc. */
     struct FileHandler *nextPtr;/* Next in list of all files we care about. */
 } FileHandler;
 
@@ -76,11 +75,6 @@ static int              FileHandlerEventProc(Tcl_Event *evPtr, int flags);
 static void             FileProc(XtPointer clientData, int *source,
                             XtInputId *id);
 static void             NotifierExitHandler(ClientData clientData);
-void             CreateFileHandler(int fd, int mask,
-                            Tcl_FileProc *proc, ClientData clientData);
-void             DeleteFileHandler(int fd);
-
-
 
 /*
  *----------------------------------------------------------------------
@@ -350,31 +344,15 @@ FileHandlerEventProc(
     }
     return 1;
 }
-/*
- *----------------------------------------------------------------------
- *
- * CreateFileHandler --
- *
- *	This procedure registers a file handler with the Xt notifier.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Creates a new file handler structure and registers one or more input
- *	procedures with Xt.
- *
- *----------------------------------------------------------------------
- */
 
 static void
-Py_CreateFileHandler(
+PyEvents_CreateFileHandler(
     int fd,			/* Handle of stream to watch. */
     int mask,			/* OR'ed combination of TCL_READABLE,
 				 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
 				 * conditions under which proc should be
 				 * called. */
-    Tcl_FileProc *proc,		/* Procedure to call for each selected
+    void(*proc)(void*, int),	/* Procedure to call for each selected
 				 * event. */
     ClientData clientData)	/* Arbitrary data to pass to proc. */
 {
@@ -437,41 +415,8 @@ Py_CreateFileHandler(
     filePtr->mask = mask;
 }
 
-void
-CreateFileHandler(
-    int fd,			/* Handle of stream to watch. */
-    int mask,			/* OR'ed combination of TCL_READABLE,
-				 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
-				 * conditions under which proc should be
-				 * called. */
-    Tcl_FileProc *proc,		/* Procedure to call for each selected
-				 * event. */
-    ClientData clientData)	/* Arbitrary data to pass to proc. */
-{
-    if (!initialized) {
-	InitNotifier();
-    }
-    Py_CreateFileHandler(fd, mask, proc, clientData);
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * DeleteFileHandler --
- *
- *	Cancel a previously-arranged callback arrangement for a file.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	If a callback was previously registered on file, remove it.
- *
- *----------------------------------------------------------------------
- */
-
 static void
-Py_DeleteFileHandler(
+PyEvents_DeleteFileHandler(
     int fd)			/* Stream id for which to remove callback
 				 * procedure. */
 {
@@ -512,17 +457,6 @@ Py_DeleteFileHandler(
     ckfree(filePtr);
 }
 
-void
-DeleteFileHandler(
-    int fd)			/* Stream id for which to remove callback
-				 * procedure. */
-{
-    if (!initialized) {
-	InitNotifier();
-    }
-    Py_DeleteFileHandler(fd);
-}
-
 static int
 PyEvents_HavePendingEvents(void)
 {
@@ -667,6 +601,8 @@ void initevents(void)
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
     PyEvents_API[PyEvents_ProcessEvent_NUM] = (void *)PyEvents_ProcessEvent;
     PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
+    PyEvents_API[PyEvents_CreateFileHandler_NUM] = (void *)PyEvents_CreateFileHandler;
+    PyEvents_API[PyEvents_DeleteFileHandler_NUM] = (void *)PyEvents_DeleteFileHandler;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
