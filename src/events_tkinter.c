@@ -45,6 +45,8 @@ extern struct NotifierState {
  *----------------------------------------------------------------------
  */
 
+extern void TclTimerProc(PyObject* timer);
+
 static void
 SetTimer(
     const Tcl_Time *timePtr)            /* Timeout value, may be NULL. */
@@ -60,7 +62,8 @@ SetTimer(
     }
     if (timePtr) {
         timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-        notifier.currentTimeout = PyEvents_AddTimer((unsigned long) timeout);
+        notifier.currentTimeout = PyEvents_AddTimer((unsigned long) timeout,
+                                                    TclTimerProc);
     } else {
         notifier.currentTimeout = NULL;
     }

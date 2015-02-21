@@ -148,7 +148,7 @@ static PyTypeObject TimerType = {
     "Timer object",            /*tp_doc */
 };
 
-static void TclTimerProc(PyObject* timer)
+void TclTimerProc(PyObject* timer)
 {
     if (timer != notifier.currentTimeout) {
         /* this is not supposed to happen */
@@ -160,14 +160,14 @@ static void TclTimerProc(PyObject* timer)
 }
 
 static PyObject*
-PyEvents_AddTimer(unsigned long timeout)
+PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
 {
     TimerObject* object;
     XtIntervalId timer;
     object = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
     timer = XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, object);
     object->timer = timer;
-    object->callback = TclTimerProc;
+    object->callback = callback;
     return (PyObject*)object;
 }
 

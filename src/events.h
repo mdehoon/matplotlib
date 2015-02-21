@@ -9,7 +9,7 @@
 #define PyEvents_System_PROTO (const char *command)
 #define PyEvents_AddTimer_NUM 1
 #define PyEvents_AddTimer_RETURN PyObject*
-#define PyEvents_AddTimer_PROTO (unsigned long timeout)
+#define PyEvents_AddTimer_PROTO (unsigned long timeout, void(*callback)(PyObject*))
 #define PyEvents_RemoveTimer_NUM 2
 #define PyEvents_RemoveTimer_RETURN void
 #define PyEvents_RemoveTimer_PROTO (PyObject* timer)
