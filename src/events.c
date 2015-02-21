@@ -147,6 +147,17 @@ static PyTypeObject TimerType = {
     "Timer object",            /*tp_doc */
 };
 
+static void TclTimerProc(PyObject* timer)
+{
+    if (timer != notifier.currentTimeout) {
+        /* this is not supposed to happen */
+	return;
+    }
+    Py_DECREF(notifier.currentTimeout);
+    notifier.currentTimeout = NULL;
+    Tcl_ServiceAll();
+}
+
 static PyObject*
 PyEvents_AddTimer(unsigned long timeout)
 {
@@ -354,7 +365,7 @@ FileHandlerEventProc(
  */
 
 static void
-TimerProc( XtPointer clientData, XtIntervalId *id)
+TimerProc(XtPointer clientData, XtIntervalId *id)
 {
     TimerObject* object = (TimerObject*)clientData;
     if (object->timer != *id) {
@@ -362,13 +373,7 @@ TimerProc( XtPointer clientData, XtIntervalId *id)
         return;
     }
     object->timer = 0;
-    if ((PyObject*)object != notifier.currentTimeout) {
-	return;
-    }
-    Py_DECREF(notifier.currentTimeout);
-    notifier.currentTimeout = NULL;
-
-    Tcl_ServiceAll();
+    TclTimerProc((PyObject*)object);
 }
 
 /*
