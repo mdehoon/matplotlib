@@ -4,7 +4,6 @@
 #define EVENTS_MODULE
 #include "events.h"
 #include <tcl.h>
-#include <tk.h>
 
 #if PY_MAJOR_VERSION >= 3
 #define PY3K 1
