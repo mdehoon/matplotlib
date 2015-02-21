@@ -117,6 +117,36 @@ InitNotifier(void)
     Tcl_CreateExitHandler(NotifierExitHandler, NULL);
 }
 
+typedef struct {
+    PyObject_HEAD
+    XtIntervalId timer;
+} TimerObject;
+
+static PyTypeObject TimerType = {
+    PyObject_HEAD_INIT(NULL)
+    0,                         /*ob_size*/
+    "events.Timer",            /*tp_name*/
+    sizeof(TimerObject),       /*tp_basicsize*/
+    0,                         /*tp_itemsize*/
+    0,                         /*tp_dealloc*/
+    0,                         /*tp_print*/
+    0,                         /*tp_getattr*/
+    0,                         /*tp_setattr*/
+    0,                         /*tp_compare*/
+    0,                         /*tp_repr*/
+    0,                         /*tp_as_number*/
+    0,                         /*tp_as_sequence*/
+    0,                         /*tp_as_mapping*/
+    0,                         /*tp_hash */
+    0,                         /*tp_call*/
+    0,                         /*tp_str*/
+    0,                         /*tp_getattro*/
+    0,                         /*tp_setattro*/
+    0,                         /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+    "Timer object",            /*tp_doc */
+};
+
 static XtIntervalId
 PyEvents_AddTimer(unsigned long timeout)
 {
@@ -690,17 +720,19 @@ void initevents(void)
     PyObject *module;
     static void *PyEvents_API[PyEvents_API_pointers];
     PyObject* c_api_object;
+
+    if (PyType_Ready(&TimerType) < 0)
+        goto error;
 #if PY3K
     module = PyModule_Create(&moduledef);
-    if (module==NULL) return NULL;
 #else
     module = Py_InitModule4("events",
                             methods,
                             "events module",
                             NULL,
                             PYTHON_API_VERSION);
-    if (module==NULL) return;
 #endif
+    if (module==NULL) goto error;
     PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
@@ -710,4 +742,11 @@ void initevents(void)
 #if PY3K
     return module;
 #endif
+error:
+#if PY3K
+    return NULL;
+#else
+    return;
+#endif
+
 }
