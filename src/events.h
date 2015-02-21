@@ -8,11 +8,11 @@
 #define PyEvents_System_RETURN int
 #define PyEvents_System_PROTO (const char *command)
 #define PyEvents_AddTimer_NUM 1
-#define PyEvents_AddTimer_RETURN XtIntervalId
+#define PyEvents_AddTimer_RETURN PyObject*
 #define PyEvents_AddTimer_PROTO (unsigned long timeout)
 #define PyEvents_RemoveTimer_NUM 2
 #define PyEvents_RemoveTimer_RETURN void
-#define PyEvents_RemoveTimer_PROTO (XtIntervalId timer)
+#define PyEvents_RemoveTimer_PROTO (PyObject* timer)
 
 /* Total number of C API pointers */
 #define PyEvents_API_pointers 3

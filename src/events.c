@@ -57,7 +57,7 @@ typedef struct FileHandlerEvent {
 
 struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
-    XtIntervalId currentTimeout;/* Handle of current timer. */
+    PyObject* currentTimeout;/* Handle of current timer. */
     FileHandler *firstFileHandlerPtr;
                                 /* Pointer to head of file handler list. */
 } notifier;
@@ -147,16 +147,29 @@ static PyTypeObject TimerType = {
     "Timer object",            /*tp_doc */
 };
 
-static XtIntervalId
+static PyObject*
 PyEvents_AddTimer(unsigned long timeout)
 {
-    return XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, NULL);
+    TimerObject* object;
+    XtIntervalId timer;
+    object = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
+    timer = XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, object);
+    object->timer = timer;
+    return (PyObject*)object;
 }
 
 static void
-PyEvents_RemoveTimer(XtIntervalId timer)
+PyEvents_RemoveTimer(PyObject* argument)
 {
-    return XtRemoveTimeOut(timer);
+    if (argument && PyObject_TypeCheck(argument, &TimerType))
+    {
+        TimerObject* object = (TimerObject*)argument;
+        XtIntervalId timer = object->timer;
+        if (timer) {
+            XtRemoveTimeOut(timer);
+            object->timer = 0;
+        }
+    }
 }
 
 /*
@@ -341,14 +354,17 @@ FileHandlerEventProc(
  */
 
 static void
-TimerProc(
-    XtPointer clientData, /* Not used. */
-    XtIntervalId *id)
+TimerProc( XtPointer clientData, XtIntervalId *id)
 {
-    if (*id != notifier.currentTimeout) {
+    TimerObject* object = (TimerObject*)clientData;
+    if (object->timer != *id) {
+        return;
+    }
+    object->timer = 0;
+    if ((PyObject*)object != notifier.currentTimeout) {
 	return;
     }
-    notifier.currentTimeout = 0;
+    notifier.currentTimeout = NULL;
 
     Tcl_ServiceAll();
 }

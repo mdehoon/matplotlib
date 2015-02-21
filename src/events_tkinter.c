@@ -21,7 +21,7 @@ extern void InitNotifier(void);
 
 extern struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
-    XtIntervalId currentTimeout;/* Handle of current timer. */
+    PyObject* currentTimeout;/* Handle of current timer. */
     void* *firstFileHandlerPtr;
                                 /* Pointer to head of file handler list. */
 } notifier;
@@ -56,12 +56,13 @@ SetTimer(
 
     if (notifier.currentTimeout != 0) {
         PyEvents_RemoveTimer(notifier.currentTimeout);
+        Py_DECREF(notifier.currentTimeout);
     }
     if (timePtr) {
         timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
         notifier.currentTimeout = PyEvents_AddTimer((unsigned long) timeout);
     } else {
-        notifier.currentTimeout = 0;
+        notifier.currentTimeout = NULL;
     }
 }
 
