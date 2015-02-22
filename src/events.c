@@ -71,7 +71,7 @@ int initialized = 0;
  */
 
 static int              FileHandlerEventProc(Tcl_Event *evPtr, int flags);
-static void             FileProc(XtPointer clientData, int *source,
+static void             TclFileProc(XtPointer clientData, int *source,
                             XtInputId *id);
 static void             NotifierExitHandler(ClientData clientData);
 
@@ -227,7 +227,7 @@ NotifierExitHandler(
  */
 
 static void
-FileProc(
+TclFileProc(
     XtPointer clientData,
     int *fd,
     XtInputId *id)
@@ -272,7 +272,16 @@ FileProc(
 
     Tcl_ServiceAll();
 }
-
+
+static void
+FileProc(
+    XtPointer clientData,
+    int *fd,
+    XtInputId *id)
+{
+    return TclFileProc(clientData, fd, id);
+}
+
 /*
  *----------------------------------------------------------------------
  *
