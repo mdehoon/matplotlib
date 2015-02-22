@@ -110,6 +110,36 @@ SetTimer(
     }
 }
 
+typedef struct {
+    PyObject_HEAD
+    ClientData clientData;
+} FileHandlerDataObject;
+
+static PyTypeObject FileHandlerDataType = {
+    PyObject_HEAD_INIT(NULL)
+    0,                         /*ob_size*/
+    "events_tkinter.FileHandlerData",  /*tp_name*/
+    sizeof(FileHandlerDataObject),       /*tp_basicsize*/
+    0,                         /*tp_itemsize*/
+    0,                         /*tp_dealloc*/
+    0,                         /*tp_print*/
+    0,                         /*tp_getattr*/
+    0,                         /*tp_setattr*/
+    0,                         /*tp_compare*/
+    0,                         /*tp_repr*/
+    0,                         /*tp_as_number*/
+    0,                         /*tp_as_sequence*/
+    0,                         /*tp_as_mapping*/
+    0,                         /*tp_hash */
+    0,                         /*tp_call*/
+    0,                         /*tp_str*/
+    0,                         /*tp_getattro*/
+    0,                         /*tp_setattro*/
+    0,                         /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+    "FileHandlerData object",            /*tp_doc */
+};
+
 /*
  *----------------------------------------------------------------------
  *
@@ -138,10 +168,15 @@ CreateFileHandler(
                                  * event. */
     ClientData clientData)      /* Arbitrary data to pass to proc. */
 {
+    PyObject* argument;
+    FileHandlerDataObject* object;
     if (!initialized) {
         InitNotifier();
     }
-    PyEvents_CreateFileHandler(fd, mask, proc, clientData);
+    argument = PyType_GenericNew(&FileHandlerDataType, NULL, NULL);
+    object = (FileHandlerDataObject*)argument;
+    object->clientData = clientData;
+    PyEvents_CreateFileHandler(fd, mask, proc, argument);
 }
 
 /*
@@ -229,6 +264,8 @@ void initevents_tkinter(void)
 #endif
 {
     PyObject *module;
+    if (PyType_Ready(&FileHandlerDataType) < 0)
+        goto error;
 #if PY3K
     module = PyModule_Create(&moduledef);
     if (module==NULL) return NULL;
@@ -248,5 +285,11 @@ void initevents_tkinter(void)
     
 #if PY3K
     return module;
+#endif
+error:
+#if PY3K
+    return NULL;
+#else
+    return;
 #endif
 }

@@ -30,6 +30,7 @@ typedef struct FileHandler {
     XtInputId except;		/* Xt exception callback handle. */
     void(*proc)(void*, int);	/* Procedure to call */
     void* clientData;		/* Argument to pass to proc. */
+    PyObject* argument;
     struct FileHandler *nextPtr;/* Next in list of all files we care about. */
 } FileHandler;
 
@@ -353,6 +354,11 @@ FileHandlerEventProc(
     return 1;
 }
 
+typedef struct {
+    PyObject_HEAD
+    ClientData clientData;
+} FileHandlerDataObject;
+
 static void
 PyEvents_CreateFileHandler(
     int fd,			/* Handle of stream to watch. */
@@ -362,9 +368,10 @@ PyEvents_CreateFileHandler(
 				 * called. */
     void(*proc)(void*, int),	/* Procedure to call for each selected
 				 * event. */
-    ClientData clientData)	/* Arbitrary data to pass to proc. */
+    PyObject* argument)		/* Arbitrary data to pass to proc. */
 {
     FileHandler *filePtr;
+    FileHandlerDataObject* object = (FileHandlerDataObject*)argument;
 
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
 	    filePtr = filePtr->nextPtr) {
@@ -383,8 +390,12 @@ PyEvents_CreateFileHandler(
 	filePtr->nextPtr = notifier.firstFileHandlerPtr;
 	notifier.firstFileHandlerPtr = filePtr;
     }
+    else {
+        Py_XDECREF(filePtr->argument);
+    }
     filePtr->proc = proc;
-    filePtr->clientData = clientData;
+    filePtr->clientData = object->clientData;
+    filePtr->argument = argument;
 
     /*
      * Register the file with the Xt notifier, if it hasn't been done yet.
@@ -462,6 +473,7 @@ PyEvents_DeleteFileHandler(
     if (filePtr->mask & TCL_EXCEPTION) {
 	XtRemoveInput(filePtr->except);
     }
+    Py_XDECREF(filePtr->argument);
     ckfree(filePtr);
 }
 
