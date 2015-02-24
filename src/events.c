@@ -72,7 +72,7 @@ int initialized = 0;
  */
 
 static int              FileHandlerEventProc(Tcl_Event *evPtr, int flags);
-static void             TclFileProc(XtPointer clientData, int *source, int mask);
+static void             TclFileProc(XtPointer clientData, int mask);
 static void             NotifierExitHandler(ClientData clientData);
 
 /*
@@ -229,7 +229,6 @@ NotifierExitHandler(
 static void
 TclFileProc(
     XtPointer clientData,
-    int *fd,
     int mask)
 {
     FileHandler *filePtr = (FileHandler *)clientData;
@@ -267,7 +266,7 @@ ReadFileProc(
     XtInputId *id)
 {
     int mask = TCL_READABLE;
-    return TclFileProc(clientData, fd, mask);
+    return TclFileProc(clientData, mask);
 }
 
 static void
@@ -277,7 +276,7 @@ WriteFileProc(
     XtInputId *id)
 {
     int mask = TCL_WRITABLE;
-    return TclFileProc(clientData, fd, mask);
+    return TclFileProc(clientData, mask);
 }
 
 static void
@@ -287,7 +286,7 @@ ExceptionFileProc(
     XtInputId *id)
 {
     int mask = TCL_EXCEPTION;
-    return TclFileProc(clientData, fd, mask);
+    return TclFileProc(clientData, mask);
 }
 
 /*
