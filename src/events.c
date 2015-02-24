@@ -275,7 +275,25 @@ TclFileProc(
 }
 
 static void
-FileProc(
+ReadFileProc(
+    XtPointer clientData,
+    int *fd,
+    XtInputId *id)
+{
+    return TclFileProc(clientData, fd, id);
+}
+
+static void
+WriteFileProc(
+    XtPointer clientData,
+    int *fd,
+    XtInputId *id)
+{
+    return TclFileProc(clientData, fd, id);
+}
+
+static void
+ExceptionFileProc(
     XtPointer clientData,
     int *fd,
     XtInputId *id)
@@ -404,7 +422,7 @@ PyEvents_CreateFileHandler(
     if (mask & TCL_READABLE) {
 	if (!(filePtr->mask & TCL_READABLE)) {
 	    filePtr->read = XtAppAddInput(notifier.appContext, fd,
-		    (XtPointer) (XtInputReadMask), FileProc, filePtr);
+		    (XtPointer) (XtInputReadMask), ReadFileProc, filePtr);
 	}
     } else {
 	if (filePtr->mask & TCL_READABLE) {
@@ -414,7 +432,7 @@ PyEvents_CreateFileHandler(
     if (mask & TCL_WRITABLE) {
 	if (!(filePtr->mask & TCL_WRITABLE)) {
 	    filePtr->write = XtAppAddInput(notifier.appContext, fd,
-		    (XtPointer) (XtInputWriteMask), FileProc, filePtr);
+		    (XtPointer) (XtInputWriteMask), WriteFileProc, filePtr);
 	}
     } else {
 	if (filePtr->mask & TCL_WRITABLE) {
@@ -424,7 +442,7 @@ PyEvents_CreateFileHandler(
     if (mask & TCL_EXCEPTION) {
 	if (!(filePtr->mask & TCL_EXCEPTION)) {
 	    filePtr->except = XtAppAddInput(notifier.appContext, fd,
-		    (XtPointer) (XtInputExceptMask), FileProc, filePtr);
+		    (XtPointer) (XtInputExceptMask), ExceptionFileProc, filePtr);
 	}
     } else {
 	if (filePtr->mask & TCL_EXCEPTION) {
