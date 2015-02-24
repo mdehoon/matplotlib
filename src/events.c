@@ -365,122 +365,41 @@ typedef struct {
     ClientData clientData;
 } FileHandlerDataObject;
 
-static void
+static XtInputId
 PyEvents_CreateFileHandler(
     int fd,			/* Handle of stream to watch. */
     int mask,			/* OR'ed combination of TCL_READABLE,
 				 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
 				 * conditions under which proc should be
 				 * called. */
-    void(*proc)(void*, int),	/* Procedure to call for each selected
-				 * event. */
-    PyObject* argument)		/* Arbitrary data to pass to proc. */
+    void* p)			/* Arbitrary data to pass to proc. */
 {
-    FileHandler *filePtr;
-    FileHandlerDataObject* object = (FileHandlerDataObject*)argument;
-
-    for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
-	    filePtr = filePtr->nextPtr) {
-	if (filePtr->fd == fd) {
-	    break;
-	}
-    }
-    if (filePtr == NULL) {
-	filePtr = ckalloc(sizeof(FileHandler));
-	filePtr->fd = fd;
-	filePtr->read = 0;
-	filePtr->write = 0;
-	filePtr->except = 0;
-	filePtr->readyMask = 0;
-	filePtr->mask = 0;
-	filePtr->nextPtr = notifier.firstFileHandlerPtr;
-	notifier.firstFileHandlerPtr = filePtr;
-    }
-    else {
-        Py_XDECREF(filePtr->argument);
-    }
-    filePtr->proc = proc;
-    filePtr->clientData = object->clientData;
-    filePtr->argument = argument;
-
+    FileHandler* filePtr = p;
     /*
      * Register the file with the Xt notifier, if it hasn't been done yet.
      */
 
     if (mask & TCL_READABLE) {
-	if (!(filePtr->mask & TCL_READABLE)) {
-	    filePtr->read = XtAppAddInput(notifier.appContext, fd,
-		    (XtPointer) (XtInputReadMask), ReadFileProc, filePtr);
-	}
-    } else {
-	if (filePtr->mask & TCL_READABLE) {
-	    XtRemoveInput(filePtr->read);
-	}
+	return XtAppAddInput(notifier.appContext, fd,
+	    (XtPointer) (XtInputReadMask), ReadFileProc, filePtr);
     }
     if (mask & TCL_WRITABLE) {
-	if (!(filePtr->mask & TCL_WRITABLE)) {
-	    filePtr->write = XtAppAddInput(notifier.appContext, fd,
-		    (XtPointer) (XtInputWriteMask), WriteFileProc, filePtr);
-	}
-    } else {
-	if (filePtr->mask & TCL_WRITABLE) {
-	    XtRemoveInput(filePtr->write);
-	}
+	return XtAppAddInput(notifier.appContext, fd,
+	    (XtPointer) (XtInputWriteMask), WriteFileProc, filePtr);
     }
     if (mask & TCL_EXCEPTION) {
-	if (!(filePtr->mask & TCL_EXCEPTION)) {
-	    filePtr->except = XtAppAddInput(notifier.appContext, fd,
-		    (XtPointer) (XtInputExceptMask), ExceptionFileProc, filePtr);
-	}
-    } else {
-	if (filePtr->mask & TCL_EXCEPTION) {
-	    XtRemoveInput(filePtr->except);
-	}
+	 return XtAppAddInput(notifier.appContext, fd,
+	    (XtPointer) (XtInputExceptMask), ExceptionFileProc, filePtr);
     }
-    filePtr->mask = mask;
+    return 0;
 }
 
 static void
 PyEvents_DeleteFileHandler(
-    int fd)			/* Stream id for which to remove callback
+    XtInputId id)		/* Stream id for which to remove callback
 				 * procedure. */
 {
-    FileHandler *filePtr, *prevPtr;
-
-    /*
-     * Find the entry for the given file (and return if there isn't one).
-     */
-
-    for (prevPtr = NULL, filePtr = notifier.firstFileHandlerPtr; ;
-	    prevPtr = filePtr, filePtr = filePtr->nextPtr) {
-	if (filePtr == NULL) {
-	    return;
-	}
-	if (filePtr->fd == fd) {
-	    break;
-	}
-    }
-
-    /*
-     * Clean up information in the callback record.
-     */
-
-    if (prevPtr == NULL) {
-	notifier.firstFileHandlerPtr = filePtr->nextPtr;
-    } else {
-	prevPtr->nextPtr = filePtr->nextPtr;
-    }
-    if (filePtr->mask & TCL_READABLE) {
-	XtRemoveInput(filePtr->read);
-    }
-    if (filePtr->mask & TCL_WRITABLE) {
-	XtRemoveInput(filePtr->write);
-    }
-    if (filePtr->mask & TCL_EXCEPTION) {
-	XtRemoveInput(filePtr->except);
-    }
-    Py_XDECREF(filePtr->argument);
-    ckfree(filePtr);
+    XtRemoveInput(id);
 }
 
 static int

@@ -14,10 +14,26 @@ extern int initialized;
 
 extern void InitNotifier(void);
 
+typedef struct FileHandler {
+    int fd;
+    int mask;                   /* Mask of desired events: TCL_READABLE,
+                                 * etc. */
+    int readyMask;              /* Events that have been seen since the last
+                                 * time FileHandlerEventProc was called for
+                                 * this file. */
+    XtInputId read;             /* Xt read callback handle. */
+    XtInputId write;            /* Xt write callback handle. */
+    XtInputId except;           /* Xt exception callback handle. */
+    void(*proc)(void*, int);    /* Procedure to call */
+    void* clientData;           /* Argument to pass to proc. */
+    PyObject* argument;
+    struct FileHandler *nextPtr;/* Next in list of all files we care about. */
+} FileHandler;
+
 extern struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
     PyObject* currentTimeout;/* Handle of current timer. */
-    void* *firstFileHandlerPtr;
+    FileHandler *firstFileHandlerPtr;
                                 /* Pointer to head of file handler list. */
 } notifier;
 
@@ -168,6 +184,7 @@ CreateFileHandler(
                                  * event. */
     ClientData clientData)      /* Arbitrary data to pass to proc. */
 {
+    FileHandler* filePtr;
     PyObject* argument;
     FileHandlerDataObject* object;
     if (!initialized) {
@@ -176,7 +193,58 @@ CreateFileHandler(
     argument = PyType_GenericNew(&FileHandlerDataType, NULL, NULL);
     object = (FileHandlerDataObject*)argument;
     object->clientData = clientData;
-    PyEvents_CreateFileHandler(fd, mask, proc, argument);
+
+    for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
+            filePtr = filePtr->nextPtr) {
+        if (filePtr->fd == fd) {
+            break;
+        }
+    }
+    if (filePtr == NULL) {
+        filePtr = ckalloc(sizeof(FileHandler));
+        filePtr->fd = fd;
+        filePtr->read = 0;
+        filePtr->write = 0;
+        filePtr->except = 0;
+        filePtr->readyMask = 0;
+        filePtr->mask = 0;
+        filePtr->nextPtr = notifier.firstFileHandlerPtr;
+        notifier.firstFileHandlerPtr = filePtr;
+    }
+    else {
+        Py_XDECREF(filePtr->argument);
+    }
+    filePtr->proc = proc;
+    filePtr->clientData = object->clientData;
+    filePtr->argument = argument;
+    if (mask & TCL_READABLE) {
+        if (!(filePtr->mask & TCL_READABLE)) {
+            filePtr->read = PyEvents_CreateFileHandler(fd, mask, filePtr);
+        }
+    } else {
+        if (filePtr->mask & TCL_READABLE) {
+            XtRemoveInput(filePtr->read);
+        }
+    }
+    if (mask & TCL_WRITABLE) {
+        if (!(filePtr->mask & TCL_WRITABLE)) {
+            filePtr->write = PyEvents_CreateFileHandler(fd, mask, filePtr);
+        }
+    } else {
+        if (filePtr->mask & TCL_WRITABLE) {
+            XtRemoveInput(filePtr->write);
+        }
+    }
+    if (mask & TCL_EXCEPTION) {
+        if (!(filePtr->mask & TCL_EXCEPTION)) {
+            filePtr->except = PyEvents_CreateFileHandler(fd, mask, filePtr);
+        }
+    } else {
+        if (filePtr->mask & TCL_EXCEPTION) {
+            XtRemoveInput(filePtr->except);
+        }
+    }
+    filePtr->mask = mask;
 }
 
 /*
@@ -199,10 +267,47 @@ static void
 DeleteFileHandler(int fd)       /* Stream id for which to remove callback
                                  * procedure. */
 {
+    FileHandler *prevPtr;
+    FileHandler* filePtr = NULL;
     if (!initialized) {
         InitNotifier();
     }
-    PyEvents_DeleteFileHandler(fd);
+
+    /*
+     * Find the entry for the given file (and return if there isn't one).
+     */
+
+    for (prevPtr = NULL, filePtr = notifier.firstFileHandlerPtr; ;
+            prevPtr = filePtr, filePtr = filePtr->nextPtr) {
+        if (filePtr == NULL) {
+            return;
+        }
+        if (filePtr->fd == fd) {
+            break;
+        }
+    }
+    if (prevPtr == NULL) {
+        notifier.firstFileHandlerPtr = filePtr->nextPtr;
+    } else {
+        prevPtr->nextPtr = filePtr->nextPtr;
+    }
+
+    /*
+     * Clean up information in the callback record.
+     */
+
+    if (filePtr->mask & TCL_READABLE) {
+        PyEvents_DeleteFileHandler(filePtr->read);
+    }
+    if (filePtr->mask & TCL_WRITABLE) {
+        PyEvents_DeleteFileHandler(filePtr->write);
+    }
+    if (filePtr->mask & TCL_EXCEPTION) {
+        PyEvents_DeleteFileHandler(filePtr->except);
+    }
+
+    Py_XDECREF(filePtr->argument);
+    ckfree(filePtr);
 }
 
 static PyObject*

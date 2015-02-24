@@ -17,11 +17,11 @@
 #define PyEvents_HavePendingEvents_RETURN int
 #define PyEvents_HavePendingEvents_PROTO (void)
 #define PyEvents_CreateFileHandler_NUM 4
-#define PyEvents_CreateFileHandler_RETURN void
-#define PyEvents_CreateFileHandler_PROTO (int fd, int mask, void(*proc)(void*, int), PyObject* data)
+#define PyEvents_CreateFileHandler_RETURN XtInputId
+#define PyEvents_CreateFileHandler_PROTO (int fd, int mask, void* filePtr)
 #define PyEvents_DeleteFileHandler_NUM 5
 #define PyEvents_DeleteFileHandler_RETURN void
-#define PyEvents_DeleteFileHandler_PROTO (int fd)
+#define PyEvents_DeleteFileHandler_PROTO (XtInputId id)
 
 /* Total number of C API pointers */
 #define PyEvents_API_pointers 6
