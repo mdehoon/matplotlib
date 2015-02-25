@@ -35,21 +35,6 @@ typedef struct FileHandler {
 } FileHandler;
 
 /*
- * The following structure is what is added to the Tcl event queue when file
- * handlers are ready to fire.
- */
-
-typedef struct FileHandlerEvent {
-    Tcl_Event header;           /* Information that is standard for all
-                                 * events. */
-    int fd;                     /* File descriptor that is ready. Used to find
-                                 * the FileHandler structure for the file
-                                 * (can't point directly to the FileHandler
-                                 * structure because it could go away while
-                                 * the event is queued). */
-} FileHandlerEvent;
-
-/*
  * The following static structure contains the state information for the Xt
  * based implementation of the Tcl notifier.
  */
