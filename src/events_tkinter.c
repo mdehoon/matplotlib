@@ -360,7 +360,7 @@ CreateFileHandler(
         }
     } else {
         if (filePtr->mask & TCL_READABLE) {
-            XtRemoveInput(filePtr->read);
+            PyEvents_DeleteFileHandler(filePtr->read);
         }
     }
     if (mask & TCL_WRITABLE) {
@@ -369,7 +369,7 @@ CreateFileHandler(
         }
     } else {
         if (filePtr->mask & TCL_WRITABLE) {
-            XtRemoveInput(filePtr->write);
+            PyEvents_DeleteFileHandler(filePtr->write);
         }
     }
     if (mask & TCL_EXCEPTION) {
@@ -378,7 +378,7 @@ CreateFileHandler(
         }
     } else {
         if (filePtr->mask & TCL_EXCEPTION) {
-            XtRemoveInput(filePtr->except);
+            PyEvents_DeleteFileHandler(filePtr->except);
         }
     }
     filePtr->mask = mask;
