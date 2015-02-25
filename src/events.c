@@ -71,8 +71,6 @@ int initialized = 0;
  * Static routines defined in this file.
  */
 
-static int              FileHandlerEventProc(Tcl_Event *evPtr, int flags);
-static void             TclFileProc(XtPointer clientData, int mask);
 static void             NotifierExitHandler(ClientData clientData);
 
 /*
@@ -209,155 +207,21 @@ NotifierExitHandler(
     }
     initialized = 0;
 }
-/*
- *----------------------------------------------------------------------
- *
- * FileProc --
- *
- *	These procedures are called by Xt when a file becomes readable,
- *	writable, or has an exception.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Makes an entry on the Tcl event queue if the event is interesting.
- *
- *----------------------------------------------------------------------
- */
 
-static void
-TclFileProc(
-    XtPointer clientData,
-    int mask)
-{
-    FileHandler *filePtr = (FileHandler *)clientData;
-    FileHandlerEvent *fileEvPtr;
-
-    /*
-     * Ignore unwanted or duplicate events.
-     */
-
-    if (!(filePtr->mask & mask) || (filePtr->readyMask & mask)) {
-	return;
-    }
-
-    /*
-     * This is an interesting event, so put it onto the event queue.
-     */
-
-    filePtr->readyMask |= mask;
-    fileEvPtr = ckalloc(sizeof(FileHandlerEvent));
-    fileEvPtr->header.proc = FileHandlerEventProc;
-    fileEvPtr->fd = filePtr->fd;
-    Tcl_QueueEvent((Tcl_Event *) fileEvPtr, TCL_QUEUE_TAIL);
-
-    /*
-     * Process events on the Tcl event queue before returning to Xt.
-     */
-
-    Tcl_ServiceAll();
-}
-
-static void
-ReadFileProc(
-    XtPointer clientData,
-    int *fd,
-    XtInputId *id)
-{
-    int mask = TCL_READABLE;
-    return TclFileProc(clientData, mask);
-}
-
-static void
-WriteFileProc(
-    XtPointer clientData,
-    int *fd,
-    XtInputId *id)
-{
-    int mask = TCL_WRITABLE;
-    return TclFileProc(clientData, mask);
-}
-
-static void
-ExceptionFileProc(
-    XtPointer clientData,
-    int *fd,
-    XtInputId *id)
-{
-    int mask = TCL_EXCEPTION;
-    return TclFileProc(clientData, mask);
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * FileHandlerEventProc --
- *
- *	This procedure is called by Tcl_ServiceEvent when a file event reaches
- *	the front of the event queue. This procedure is responsible for
- *	actually handling the event by invoking the callback for the file
- *	handler.
- *
- * Results:
- *	Returns 1 if the event was handled, meaning it should be removed from
- *	the queue. Returns 0 if the event was not handled, meaning it should
- *	stay on the queue. The only time the event isn't handled is if the
- *	TCL_FILE_EVENTS flag bit isn't set.
- *
- * Side effects:
- *	Whatever the file handler's callback procedure does.
- *
- *----------------------------------------------------------------------
- */
-
-static int
-FileHandlerEventProc(
-    Tcl_Event *evPtr,		/* Event to service. */
-    int flags)			/* Flags that indicate what events to handle,
-				 * such as TCL_FILE_EVENTS. */
-{
-    FileHandler *filePtr;
-    FileHandlerEvent *fileEvPtr = (FileHandlerEvent *) evPtr;
+typedef struct {
+    void(*proc)(void* info, int mask);
+    void* info;
     int mask;
+} FileContext;
 
-    if (!(flags & TCL_FILE_EVENTS)) {
-	return 0;
-    }
-
-    /*
-     * Search through the file handlers to find the one whose handle matches
-     * the event. We do this rather than keeping a pointer to the file handler
-     * directly in the event, so that the handler can be deleted while the
-     * event is queued without leaving a dangling pointer.
-     */
-
-    for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
-	    filePtr = filePtr->nextPtr) {
-	if (filePtr->fd != fileEvPtr->fd) {
-	    continue;
-	}
-
-	/*
-	 * The code is tricky for two reasons:
-	 * 1. The file handler's desired events could have changed since the
-	 *    time when the event was queued, so AND the ready mask with the
-	 *    desired mask.
-	 * 2. The file could have been closed and re-opened since the time
-	 *    when the event was queued. This is why the ready mask is stored
-	 *    in the file handler rather than the queued event: it will be
-	 *    zeroed when a new file handler is created for the newly opened
-	 *    file.
-	 */
-
-	mask = filePtr->readyMask & filePtr->mask;
-	filePtr->readyMask = 0;
-	if (mask != 0) {
-	    filePtr->proc(filePtr->clientData, mask);
-	}
-	break;
-    }
-    return 1;
+static void
+FileProc(XtPointer clientData,int *fd, XtInputId *id)
+{
+    FileContext* context = (FileContext*)clientData;
+    void(*proc)(void* info, int mask) = context->proc;
+    void* info = context->info;
+    int mask = context->mask;
+    return proc(info, mask);
 }
 
 typedef struct {
@@ -372,26 +236,21 @@ PyEvents_CreateFileHandler(
 				 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
 				 * conditions under which proc should be
 				 * called. */
-    void* p)			/* Arbitrary data to pass to proc. */
+    void(*proc)(void* info, int mask),
+    void* argument)		/* Arbitrary data to pass to proc. */
 {
-    FileHandler* filePtr = p;
-    /*
-     * Register the file with the Xt notifier, if it hasn't been done yet.
-     */
-
-    if (mask & TCL_READABLE) {
-	return XtAppAddInput(notifier.appContext, fd,
-	    (XtPointer) (XtInputReadMask), ReadFileProc, filePtr);
+    XtPointer condition;
+    FileContext* context = malloc(sizeof(FileContext));
+    context->proc = proc;
+    context->info = argument;
+    context->mask = mask;
+    switch (mask) {
+        case TCL_READABLE: condition = (XtPointer)XtInputReadMask; break;
+        case TCL_WRITABLE: condition = (XtPointer)XtInputWriteMask; break;
+        case TCL_EXCEPTION: condition = (XtPointer)XtInputExceptMask; break;
+        default: return 0;
     }
-    if (mask & TCL_WRITABLE) {
-	return XtAppAddInput(notifier.appContext, fd,
-	    (XtPointer) (XtInputWriteMask), WriteFileProc, filePtr);
-    }
-    if (mask & TCL_EXCEPTION) {
-	 return XtAppAddInput(notifier.appContext, fd,
-	    (XtPointer) (XtInputExceptMask), ExceptionFileProc, filePtr);
-    }
-    return 0;
+    return XtAppAddInput(notifier.appContext, fd, condition, FileProc, context);
 }
 
 static void

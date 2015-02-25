@@ -18,7 +18,7 @@
 #define PyEvents_HavePendingEvents_PROTO (void)
 #define PyEvents_CreateFileHandler_NUM 4
 #define PyEvents_CreateFileHandler_RETURN XtInputId
-#define PyEvents_CreateFileHandler_PROTO (int fd, int mask, void* filePtr)
+#define PyEvents_CreateFileHandler_PROTO (int fd, int mask, void(*proc)(void* info, int mask), void* argument)
 #define PyEvents_DeleteFileHandler_NUM 5
 #define PyEvents_DeleteFileHandler_RETURN void
 #define PyEvents_DeleteFileHandler_PROTO (XtInputId id)
