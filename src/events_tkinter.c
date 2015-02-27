@@ -10,9 +10,18 @@
 #define PY3K 0
 #endif
 
-extern int initialized;
-
 extern int TclInExit(void); /* private function? */
+
+/*
+ * The following static indicates whether this module has been initialized.
+ */
+
+static int initialized = 0;
+
+/*
+ * This structure is used to keep track of the notifier info for a a
+ * registered file.
+ */
 
 typedef struct FileHandler {
     int fd;

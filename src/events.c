@@ -11,36 +11,9 @@
 #define PY3K 0
 #endif
 
-/*
- * This structure is used to keep track of the notifier info for a a
- * registered file.
- */
-
-typedef struct FileHandler {
-    int fd;
-    int mask;			/* Mask of desired events: TCL_READABLE,
-				 * etc. */
-    int readyMask;		/* Events that have been seen since the last
-				 * time FileHandlerEventProc was called for
-				 * this file. */
-    XtInputId read;		/* Xt read callback handle. */
-    XtInputId write;		/* Xt write callback handle. */
-    XtInputId except;		/* Xt exception callback handle. */
-    void(*proc)(void*, int);	/* Procedure to call */
-    void* clientData;		/* Argument to pass to proc. */
-    PyObject* argument;
-    struct FileHandler *nextPtr;/* Next in list of all files we care about. */
-} FileHandler;
-
 static struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
 } notifier;
-
-/*
- * The following static indicates whether this module has been initialized.
- */
-
-int initialized = 0;
 
 typedef struct {
     PyObject_HEAD
@@ -321,5 +294,4 @@ error:
 #else
     return;
 #endif
-
 }
