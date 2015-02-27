@@ -63,7 +63,8 @@ static struct NotifierState {
     PyObject* currentTimeout;/* Handle of current timer. */
     FileHandler *firstFileHandlerPtr;
                                 /* Pointer to head of file handler list. */
-} tcl_notifier;
+    int mode;                   /* Tcl's service mode */
+} notifier;
 
 /*
  *----------------------------------------------------------------------
@@ -86,14 +87,24 @@ static void
 NotifierExitHandler(
     ClientData clientData)      /* Not used. */
 {
-    if (tcl_notifier.currentTimeout != 0) {
-        PyEvents_RemoveTimer(tcl_notifier.currentTimeout);
-        Py_DECREF(tcl_notifier.currentTimeout);
+    if (notifier.currentTimeout != 0) {
+        PyEvents_RemoveTimer(notifier.currentTimeout);
+        Py_DECREF(notifier.currentTimeout);
     }
-    for (; tcl_notifier.firstFileHandlerPtr != NULL; ) {
-        Tcl_DeleteFileHandler(tcl_notifier.firstFileHandlerPtr->fd);
+    for (; notifier.firstFileHandlerPtr != NULL; ) {
+        Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
     }
     initialized = 0;
+}
+
+static void set_service_mode(void)
+{
+    notifier.mode = Tcl_SetServiceMode(TCL_SERVICE_ALL);
+}
+
+static void restore_service_mode(void)
+{
+    Tcl_SetServiceMode(notifier.mode);
 }
 
 /*
@@ -127,6 +138,8 @@ InitNotifier(void)
 
     initialized = 1;
     Tcl_CreateExitHandler(NotifierExitHandler, NULL);
+    PyEvents_AddObserver(0, set_service_mode);
+    PyEvents_AddObserver(1, restore_service_mode);
 }
 
 /*
@@ -172,12 +185,12 @@ WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
 
 static void TimerProc(PyObject* timer)
 {
-    if (timer != tcl_notifier.currentTimeout) {
+    if (timer != notifier.currentTimeout) {
         /* this is not supposed to happen */
         return;
     }
-    Py_DECREF(tcl_notifier.currentTimeout);
-    tcl_notifier.currentTimeout = NULL;
+    Py_DECREF(notifier.currentTimeout);
+    notifier.currentTimeout = NULL;
     Tcl_ServiceAll();
 }
 
@@ -206,15 +219,15 @@ SetTimer(
         InitNotifier();
     }
 
-    if (tcl_notifier.currentTimeout != 0) {
-        PyEvents_RemoveTimer(tcl_notifier.currentTimeout);
-        Py_DECREF(tcl_notifier.currentTimeout);
+    if (notifier.currentTimeout != 0) {
+        PyEvents_RemoveTimer(notifier.currentTimeout);
+        Py_DECREF(notifier.currentTimeout);
     }
     if (timePtr) {
         timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-        tcl_notifier.currentTimeout = PyEvents_AddTimer(timeout, TimerProc);
+        notifier.currentTimeout = PyEvents_AddTimer(timeout, TimerProc);
     } else {
-        tcl_notifier.currentTimeout = NULL;
+        notifier.currentTimeout = NULL;
     }
 }
 
@@ -291,7 +304,7 @@ FileHandlerEventProc(
      * event is queued without leaving a dangling pointer.
      */
 
-    for (filePtr = tcl_notifier.firstFileHandlerPtr; filePtr != NULL;
+    for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
 	    filePtr = filePtr->nextPtr) {
 	if (filePtr->fd != fileEvPtr->fd) {
 	    continue;
@@ -408,7 +421,7 @@ CreateFileHandler(
     object = (FileHandlerDataObject*)argument;
     object->clientData = clientData;
 
-    for (filePtr = tcl_notifier.firstFileHandlerPtr; filePtr != NULL;
+    for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
             filePtr = filePtr->nextPtr) {
         if (filePtr->fd == fd) {
             break;
@@ -422,8 +435,8 @@ CreateFileHandler(
         filePtr->except = 0;
         filePtr->readyMask = 0;
         filePtr->mask = 0;
-        filePtr->nextPtr = tcl_notifier.firstFileHandlerPtr;
-        tcl_notifier.firstFileHandlerPtr = filePtr;
+        filePtr->nextPtr = notifier.firstFileHandlerPtr;
+        notifier.firstFileHandlerPtr = filePtr;
     }
     else {
         Py_XDECREF(filePtr->argument);
@@ -491,7 +504,7 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
      * Find the entry for the given file (and return if there isn't one).
      */
 
-    for (prevPtr = NULL, filePtr = tcl_notifier.firstFileHandlerPtr; ;
+    for (prevPtr = NULL, filePtr = notifier.firstFileHandlerPtr; ;
             prevPtr = filePtr, filePtr = filePtr->nextPtr) {
         if (filePtr == NULL) {
             return;
@@ -501,7 +514,7 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
         }
     }
     if (prevPtr == NULL) {
-        tcl_notifier.firstFileHandlerPtr = filePtr->nextPtr;
+        notifier.firstFileHandlerPtr = filePtr->nextPtr;
     } else {
         prevPtr->nextPtr = filePtr->nextPtr;
     }

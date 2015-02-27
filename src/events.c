@@ -13,6 +13,8 @@
 
 static struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
+    Observer* observers[2];
+    int nobservers[2];
 } notifier;
 
 typedef struct {
@@ -84,6 +86,32 @@ PyEvents_RemoveTimer(PyObject* argument)
             object->timer = 0;
         }
     }
+}
+
+static void
+PyEvents_AddObserver(int activity, Observer observer)
+{
+    int n;
+    if (activity < 0 || activity > 1) return;
+    n = notifier.nobservers[activity];
+    notifier.observers[activity] = realloc(notifier.observers[activity], n+1);
+    notifier.observers[activity][n] = observer;
+    notifier.nobservers[activity] = n+1;
+}
+
+static void
+PyEvents_RemoveObserver(int activity, Observer observer)
+{
+    int n;
+    int i;
+    if (activity < 0 || activity > 1) return;
+    n = notifier.nobservers[activity];
+    for (i = 0; i < n; i++)
+        if (notifier.observers[activity][i] == observer)
+            break;
+    for ( ; i < n-1; i++)
+        notifier.observers[activity][i] = notifier.observers[activity][i+1];
+    notifier.nobservers[activity] = n-1;
 }
 
 typedef struct {
@@ -173,6 +201,7 @@ static void sigint_catcher(int signo)
 
 static int wait_for_stdin(void)
 {
+    int i;
     int interrupted = 0;
     int input_available = 0;
     int fd = fileno(stdin);
@@ -183,7 +212,10 @@ static int wait_for_stdin(void)
                                     (XtPointer)XtInputReadMask,
                                     stdin_callback,
                                     &input_available);
-    int old_mode = Tcl_SetServiceMode(TCL_SERVICE_ALL);
+    for (i = 0; i < notifier.nobservers[0]; i++) {
+        Observer* observer = notifier.observers[i];
+        (*observer)();
+    }
     sig_t py_sigint_catcher = PyOS_setsig(SIGINT, sigint_catcher);
     sigint_handler_id = XtAppAddSignal(context, sigint_handler, &interrupted);
     while (!input_available && !interrupted) {
@@ -191,7 +223,10 @@ static int wait_for_stdin(void)
     }
     PyOS_setsig(SIGINT, py_sigint_catcher);
     XtRemoveSignal(sigint_handler_id);
-    Tcl_SetServiceMode(old_mode);
+    for (i = 0; i < notifier.nobservers[1]; i++) {
+        Observer* observer = notifier.observers[i];
+        (*observer)();
+    }
     XtRemoveInput(input);
     if (interrupted) {
         errno = EINTR;
@@ -282,9 +317,15 @@ void initevents(void)
     PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
     PyEvents_API[PyEvents_CreateFileHandler_NUM] = (void *)PyEvents_CreateFileHandler;
     PyEvents_API[PyEvents_DeleteFileHandler_NUM] = (void *)PyEvents_DeleteFileHandler;
+    PyEvents_API[PyEvents_AddObserver_NUM] = (void *)PyEvents_AddObserver;
+    PyEvents_API[PyEvents_RemoveObserver_NUM] = (void *)PyEvents_RemoveObserver;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
+    notifier.observers[0] = NULL;
+    notifier.observers[1] = NULL;
+    notifier.nobservers[0] = 0;
+    notifier.nobservers[1] = 0;
 #if PY3K
     return module;
 #endif

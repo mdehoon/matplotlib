@@ -3,6 +3,8 @@
 
 /* Header file for events */
 
+typedef void (*Observer)(void);
+
 /* C API functions */
 #define PyEvents_AddTimer_NUM 0
 #define PyEvents_AddTimer_RETURN PyObject*
@@ -22,9 +24,15 @@
 #define PyEvents_DeleteFileHandler_NUM 5
 #define PyEvents_DeleteFileHandler_RETURN void
 #define PyEvents_DeleteFileHandler_PROTO (XtInputId id)
+#define PyEvents_AddObserver_NUM 6
+#define PyEvents_AddObserver_RETURN void
+#define PyEvents_AddObserver_PROTO (int activity, Observer observer)
+#define PyEvents_RemoveObserver_NUM 7
+#define PyEvents_RemoveObserver_RETURN void
+#define PyEvents_RemoveObserver_PROTO (int activity, Observer observer)
 
 /* Total number of C API pointers */
-#define PyEvents_API_pointers 6
+#define PyEvents_API_pointers 8
 
 
 #ifdef EVENTS_MODULE
@@ -36,14 +44,14 @@ static PyEvents_ProcessEvent_RETURN PyEvents_ProcessEvent PyEvents_ProcessEvent_
 static PyEvents_HavePendingEvents_RETURN PyEvents_HavePendingEvents PyEvents_HavePendingEvents_PROTO;
 static PyEvents_CreateFileHandler_RETURN PyEvents_CreateFileHandler PyEvents_CreateFileHandler_PROTO;
 static PyEvents_DeleteFileHandler_RETURN PyEvents_DeleteFileHandler PyEvents_DeleteFileHandler_PROTO;
+static PyEvents_AddObserver_RETURN PyEvents_AddObserver PyEvents_AddObserver_PROTO;
+static PyEvents_RemoveObserver_RETURN PyEvents_RemoveObserver PyEvents_RemoveObserver_PROTO;
 
 #else
 /* This section is used in modules that use the API */
 
 static void **PyEvents_API;
 
-#define PyEvents_System \
- (*(PyEvents_System_RETURN (*)PyEvents_System_PROTO) PyEvents_API[PyEvents_System_NUM])
 #define PyEvents_AddTimer \
  (*(PyEvents_AddTimer_RETURN (*)PyEvents_AddTimer_PROTO) PyEvents_API[PyEvents_AddTimer_NUM])
 #define PyEvents_RemoveTimer \
@@ -56,6 +64,8 @@ static void **PyEvents_API;
  (*(PyEvents_CreateFileHandler_RETURN (*)PyEvents_CreateFileHandler_PROTO) PyEvents_API[PyEvents_CreateFileHandler_NUM])
 #define PyEvents_DeleteFileHandler \
  (*(PyEvents_DeleteFileHandler_RETURN (*)PyEvents_DeleteFileHandler_PROTO) PyEvents_API[PyEvents_DeleteFileHandler_NUM])
+#define PyEvents_AddObserver \
+ (*(PyEvents_AddObserver_RETURN (*)PyEvents_AddObserver_PROTO) PyEvents_API[PyEvents_AddObserver_NUM])
 
 /* Return -1 on error, 0 on success.
  * PyCapsule_Import will set an exception if there's an error.
