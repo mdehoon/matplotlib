@@ -11,8 +11,6 @@
 #define PY3K 0
 #endif
 
-extern int TclInExit(void); /* private function? */
-
 /*
  * This structure is used to keep track of the notifier info for a a
  * registered file.
@@ -51,45 +49,6 @@ struct NotifierState {
  */
 
 int initialized = 0;
-
-/*
- * Static routines defined in this file.
- */
-
-static void             NotifierExitHandler(ClientData clientData);
-
-/*
- *----------------------------------------------------------------------
- *
- * InitNotifier --
- *
- *	Initializes the notifier state.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Creates a new exit handler.
- *
- *----------------------------------------------------------------------
- */
-
-void
-InitNotifier(void)
-{
-    /*
-     * Only reinitialize if we are not in exit handling. The notifier can get
-     * reinitialized after its own exit handler has run, because of exit
-     * handlers for the I/O and timer sub-systems (order dependency).
-     */
-
-    if (TclInExit()) {
-        return;
-    }
-
-    initialized = 1;
-    Tcl_CreateExitHandler(NotifierExitHandler, NULL);
-}
 
 typedef struct {
     PyObject_HEAD
@@ -160,37 +119,6 @@ PyEvents_RemoveTimer(PyObject* argument)
             object->timer = 0;
         }
     }
-}
-
-/*
- *----------------------------------------------------------------------
- *
- * NotifierExitHandler --
- *
- *      This function is called to cleanup the notifier state before Tcl is
- *      unloaded.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      Destroys the notifier window.
- *
- *----------------------------------------------------------------------
- */
-
-static void
-NotifierExitHandler(
-    ClientData clientData)      /* Not used. */
-{
-    if (notifier.currentTimeout != 0) {
-        PyEvents_RemoveTimer(notifier.currentTimeout);
-        Py_DECREF(notifier.currentTimeout);
-    }
-    for (; notifier.firstFileHandlerPtr != NULL; ) {
-        Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
-    }
-    initialized = 0;
 }
 
 typedef struct {
@@ -284,9 +212,6 @@ static int wait_for_stdin(void)
     int input_available = 0;
     int fd = fileno(stdin);
     XtAppContext context;
-    if (!initialized) {
-	InitNotifier();
-    }
     context =  notifier.appContext;
     XtInputId input = XtAppAddInput(context,
                                     fd,
@@ -395,7 +320,6 @@ void initevents(void)
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
-    InitNotifier();
 #if PY3K
     return module;
 #endif

@@ -12,7 +12,7 @@
 
 extern int initialized;
 
-extern void InitNotifier(void);
+extern int TclInExit(void); /* private function? */
 
 typedef struct FileHandler {
     int fd;
@@ -51,6 +51,70 @@ extern struct NotifierState {
     FileHandler *firstFileHandlerPtr;
                                 /* Pointer to head of file handler list. */
 } notifier;
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NotifierExitHandler --
+ *
+ *      This function is called to cleanup the notifier state before Tcl is
+ *      unloaded.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      Destroys the notifier window.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+NotifierExitHandler(
+    ClientData clientData)      /* Not used. */
+{
+    if (notifier.currentTimeout != 0) {
+        PyEvents_RemoveTimer(notifier.currentTimeout);
+        Py_DECREF(notifier.currentTimeout);
+    }
+    for (; notifier.firstFileHandlerPtr != NULL; ) {
+        Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
+    }
+    initialized = 0;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InitNotifier --
+ *
+ *	Initializes the notifier state.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Creates a new exit handler.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+InitNotifier(void)
+{
+    /*
+     * Only reinitialize if we are not in exit handling. The notifier can get
+     * reinitialized after its own exit handler has run, because of exit
+     * handlers for the I/O and timer sub-systems (order dependency).
+     */
+
+    if (TclInExit()) {
+        return;
+    }
+
+    initialized = 1;
+    Tcl_CreateExitHandler(NotifierExitHandler, NULL);
+}
 
 /*
  *----------------------------------------------------------------------
@@ -524,7 +588,7 @@ void initevents_tkinter(void)
 #else
         return;
 #endif
-    
+    InitNotifier();
 #if PY3K
     return module;
 #endif
