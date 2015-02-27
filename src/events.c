@@ -32,16 +32,8 @@ typedef struct FileHandler {
     struct FileHandler *nextPtr;/* Next in list of all files we care about. */
 } FileHandler;
 
-/*
- * The following static structure contains the state information for the Xt
- * based implementation of the Tcl notifier.
- */
-
-struct NotifierState {
+static struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
-    PyObject* currentTimeout;/* Handle of current timer. */
-    FileHandler *firstFileHandlerPtr;
-                                /* Pointer to head of file handler list. */
 } notifier;
 
 /*
