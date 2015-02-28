@@ -114,25 +114,22 @@ PyEvents_RemoveObserver(int activity, Observer observer)
 }
 
 typedef struct {
+    PyObject_HEAD
+    XtInputId input;
     void(*proc)(void* info, int mask);
     void* info;
     int mask;
-} FileContext;
+} FileHandlerObject;
 
 static void
-FileProc(XtPointer clientData,int *fd, XtInputId *id)
+FileProc(XtPointer clientData, int *fd, XtInputId *id)
 {
-    FileContext* context = (FileContext*)clientData;
-    void(*proc)(void* info, int mask) = context->proc;
-    void* info = context->info;
-    int mask = context->mask;
+    FileHandlerObject* object = (FileHandlerObject*)clientData;
+    void(*proc)(void* info, int mask) = object->proc;
+    void* info = object->info;
+    int mask = object->mask;
     return proc(info, mask);
 }
-
-typedef struct {
-    PyObject_HEAD
-    XtInputId input;
-} FileHandlerObject;
 
 static PyTypeObject FileHandlerType = {
     PyObject_HEAD_INIT(NULL)
@@ -172,10 +169,6 @@ PyEvents_CreateFileHandler(
     XtInputId input;
     XtPointer condition;
     FileHandlerObject* object;
-    FileContext* context = malloc(sizeof(FileContext));
-    context->proc = proc;
-    context->info = argument;
-    context->mask = mask;
     switch (mask) {
         case PyEvents_READABLE:
             condition = (XtPointer)XtInputReadMask; break;
@@ -186,7 +179,10 @@ PyEvents_CreateFileHandler(
         default: return 0;
     }
     object = (FileHandlerObject*)PyType_GenericNew(&FileHandlerType, NULL, NULL);
-    input = XtAppAddInput(notifier.appContext, fd, condition, FileProc, context);
+    input = XtAppAddInput(notifier.appContext, fd, condition, FileProc, (XtPointer)object);
+    object->proc = proc;
+    object->info = argument;
+    object->mask = mask;
     object->input = input;
     return (PyObject*)object;
 }

@@ -35,7 +35,6 @@ typedef struct FileHandler {
     PyObject* except;           /* Xt exception callback handle. */
     void(*proc)(void*, int);    /* Procedure to call */
     void* clientData;           /* Argument to pass to proc. */
-    PyObject* argument;
     struct FileHandler *nextPtr;/* Next in list of all files we care about. */
 } FileHandler;
 
@@ -231,36 +230,6 @@ SetTimer(
     }
 }
 
-typedef struct {
-    PyObject_HEAD
-    ClientData clientData;
-} FileHandlerDataObject;
-
-static PyTypeObject FileHandlerDataType = {
-    PyObject_HEAD_INIT(NULL)
-    0,                         /*ob_size*/
-    "events_tkinter.FileHandlerData",  /*tp_name*/
-    sizeof(FileHandlerDataObject),       /*tp_basicsize*/
-    0,                         /*tp_itemsize*/
-    0,                         /*tp_dealloc*/
-    0,                         /*tp_print*/
-    0,                         /*tp_getattr*/
-    0,                         /*tp_setattr*/
-    0,                         /*tp_compare*/
-    0,                         /*tp_repr*/
-    0,                         /*tp_as_number*/
-    0,                         /*tp_as_sequence*/
-    0,                         /*tp_as_mapping*/
-    0,                         /*tp_hash */
-    0,                         /*tp_call*/
-    0,                         /*tp_str*/
-    0,                         /*tp_getattro*/
-    0,                         /*tp_setattro*/
-    0,                         /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT,        /*tp_flags*/
-    "FileHandlerData object",            /*tp_doc */
-};
-
 /*
  *----------------------------------------------------------------------
  *
@@ -350,8 +319,8 @@ FileHandlerEventProc(
  *----------------------------------------------------------------------
  */
 
-void
-TclFileProc(
+static void
+FileProc(
     XtPointer clientData,
     int mask)
 {
@@ -412,14 +381,9 @@ CreateFileHandler(
     ClientData clientData)      /* Arbitrary data to pass to proc. */
 {
     FileHandler* filePtr;
-    PyObject* argument;
-    FileHandlerDataObject* object;
     if (!initialized) {
         InitNotifier();
     }
-    argument = PyType_GenericNew(&FileHandlerDataType, NULL, NULL);
-    object = (FileHandlerDataObject*)argument;
-    object->clientData = clientData;
 
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
             filePtr = filePtr->nextPtr) {
@@ -438,17 +402,13 @@ CreateFileHandler(
         filePtr->nextPtr = notifier.firstFileHandlerPtr;
         notifier.firstFileHandlerPtr = filePtr;
     }
-    else {
-        Py_XDECREF(filePtr->argument);
-    }
     filePtr->proc = proc;
-    filePtr->clientData = object->clientData;
-    filePtr->argument = argument;
+    filePtr->clientData = clientData;
     if (mask & TCL_READABLE) {
         if (!(filePtr->mask & TCL_READABLE)) {
             filePtr->read = PyEvents_CreateFileHandler(fd,
                                                        PyEvents_READABLE,
-                                                       TclFileProc,
+                                                       FileProc,
                                                        filePtr);
         }
     } else {
@@ -460,7 +420,7 @@ CreateFileHandler(
         if (!(filePtr->mask & TCL_WRITABLE)) {
             filePtr->write = PyEvents_CreateFileHandler(fd,
                                                         PyEvents_WRITABLE,
-                                                        TclFileProc,
+                                                        FileProc,
                                                         filePtr);
         }
     } else {
@@ -472,7 +432,7 @@ CreateFileHandler(
         if (!(filePtr->mask & TCL_EXCEPTION)) {
             filePtr->except = PyEvents_CreateFileHandler(fd,
                                                          PyEvents_EXCEPTION,
-                                                         TclFileProc,
+                                                         FileProc,
                                                          filePtr);
         }
     } else {
@@ -542,7 +502,6 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
         PyEvents_DeleteFileHandler(filePtr->except);
     }
 
-    Py_XDECREF(filePtr->argument);
     ckfree(filePtr);
 }
 
@@ -605,8 +564,6 @@ void initevents_tkinter(void)
 #endif
 {
     PyObject *module;
-    if (PyType_Ready(&FileHandlerDataType) < 0)
-        goto error;
 #if PY3K
     module = PyModule_Create(&moduledef);
     if (module==NULL) return NULL;
@@ -626,11 +583,5 @@ void initevents_tkinter(void)
     InitNotifier();
 #if PY3K
     return module;
-#endif
-error:
-#if PY3K
-    return NULL;
-#else
-    return;
 #endif
 }
