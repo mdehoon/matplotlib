@@ -1,6 +1,4 @@
 #include <Python.h>
-#include <X11/Intrinsic.h>
-
 #include <tcl.h>
 #include "events.h"
 
@@ -320,9 +318,7 @@ FileHandlerEventProc(
  */
 
 static void
-FileProc(
-    XtPointer clientData,
-    int mask)
+FileProc(void* clientData, int mask)
 {
     FileHandler *filePtr = (FileHandler *)clientData;
     FileHandlerEvent *fileEvPtr;
