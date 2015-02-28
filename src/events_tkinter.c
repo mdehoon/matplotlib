@@ -30,9 +30,9 @@ typedef struct FileHandler {
     int readyMask;              /* Events that have been seen since the last
                                  * time FileHandlerEventProc was called for
                                  * this file. */
-    XtInputId read;             /* Xt read callback handle. */
-    XtInputId write;            /* Xt write callback handle. */
-    XtInputId except;           /* Xt exception callback handle. */
+    PyObject* read;             /* Xt read callback handle. */
+    PyObject* write;            /* Xt write callback handle. */
+    PyObject* except;           /* Xt exception callback handle. */
     void(*proc)(void*, int);    /* Procedure to call */
     void* clientData;           /* Argument to pass to proc. */
     PyObject* argument;

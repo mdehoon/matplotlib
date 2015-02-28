@@ -23,11 +23,11 @@ typedef void (*Observer)(void);
 #define PyEvents_HavePendingEvents_RETURN int
 #define PyEvents_HavePendingEvents_PROTO (void)
 #define PyEvents_CreateFileHandler_NUM 4
-#define PyEvents_CreateFileHandler_RETURN XtInputId
+#define PyEvents_CreateFileHandler_RETURN PyObject*
 #define PyEvents_CreateFileHandler_PROTO (int fd, int mask, void(*proc)(void* info, int mask), void* argument)
 #define PyEvents_DeleteFileHandler_NUM 5
 #define PyEvents_DeleteFileHandler_RETURN void
-#define PyEvents_DeleteFileHandler_PROTO (XtInputId id)
+#define PyEvents_DeleteFileHandler_PROTO (PyObject* socket)
 #define PyEvents_AddObserver_NUM 6
 #define PyEvents_AddObserver_RETURN void
 #define PyEvents_AddObserver_PROTO (int activity, Observer observer)

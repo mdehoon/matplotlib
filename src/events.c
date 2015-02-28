@@ -131,10 +131,35 @@ FileProc(XtPointer clientData,int *fd, XtInputId *id)
 
 typedef struct {
     PyObject_HEAD
-    void* clientData;
-} FileHandlerDataObject;
+    XtInputId input;
+} FileHandlerObject;
 
-static XtInputId
+static PyTypeObject FileHandlerType = {
+    PyObject_HEAD_INIT(NULL)
+    0,                         /*ob_size*/
+    "events.FileHandler",      /*tp_name*/
+    sizeof(FileHandlerObject), /*tp_basicsize*/
+    0,                         /*tp_itemsize*/
+    0,                         /*tp_dealloc*/
+    0,                         /*tp_print*/
+    0,                         /*tp_getattr*/
+    0,                         /*tp_setattr*/
+    0,                         /*tp_compare*/
+    0,                         /*tp_repr*/
+    0,                         /*tp_as_number*/
+    0,                         /*tp_as_sequence*/
+    0,                         /*tp_as_mapping*/
+    0,                         /*tp_hash */
+    0,                         /*tp_call*/
+    0,                         /*tp_str*/
+    0,                         /*tp_getattro*/
+    0,                         /*tp_setattro*/
+    0,                         /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+    "FileHandler object",      /*tp_doc */
+};
+
+static PyObject*
 PyEvents_CreateFileHandler(
     int fd,			/* Handle of stream to watch. */
     int mask,			/* OR'ed combination of PyEvents_READABLE,
@@ -144,7 +169,9 @@ PyEvents_CreateFileHandler(
     void(*proc)(void* info, int mask),
     void* argument)		/* Arbitrary data to pass to proc. */
 {
+    XtInputId input;
     XtPointer condition;
+    FileHandlerObject* object;
     FileContext* context = malloc(sizeof(FileContext));
     context->proc = proc;
     context->info = argument;
@@ -158,15 +185,24 @@ PyEvents_CreateFileHandler(
             condition = (XtPointer)XtInputExceptMask; break;
         default: return 0;
     }
-    return XtAppAddInput(notifier.appContext, fd, condition, FileProc, context);
+    object = (FileHandlerObject*)PyType_GenericNew(&FileHandlerType, NULL, NULL);
+    input = XtAppAddInput(notifier.appContext, fd, condition, FileProc, context);
+    object->input = input;
+    return (PyObject*)object;
 }
 
 static void
-PyEvents_DeleteFileHandler(
-    XtInputId id)		/* Stream id for which to remove callback
-				 * procedure. */
+PyEvents_DeleteFileHandler(PyObject* argument)
 {
-    XtRemoveInput(id);
+    if (argument && PyObject_TypeCheck(argument, &FileHandlerType))
+    {
+        FileHandlerObject* object = (FileHandlerObject*)argument;
+        XtInputId input = object->input;
+        if (input) {
+            XtRemoveInput(input);
+            object->input = 0;
+        }
+    }
 }
 
 static int
@@ -302,6 +338,8 @@ void initevents(void)
     PyObject* c_api_object;
 
     if (PyType_Ready(&TimerType) < 0)
+        goto error;
+    if (PyType_Ready(&FileHandlerType) < 0)
         goto error;
 #if PY3K
     module = PyModule_Create(&moduledef);
