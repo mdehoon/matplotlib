@@ -2,7 +2,6 @@ import sys
 import events
 import events_tkinter
 events_tkinter.load()
-events.start()
 
 if sys.version_info[0] < 3:
     from Tkinter import *

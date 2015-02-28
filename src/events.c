@@ -272,56 +272,28 @@ static int wait_for_stdin(void)
     return 1;
 }
 
-static unsigned int started = 0;
-
-static PyObject*
-start(PyObject* unused)
-{
-    if (started==0) {
-        notifier.appContext = XtCreateApplicationContext();
-        PyOS_InputHook = wait_for_stdin;
-    }
-    started++;
-    return PyLong_FromLong(started);
-}
-
-static PyObject*
-stop(PyObject* unused)
-{
-    started--;
-    if (started==0) {
-        XtDestroyApplicationContext(notifier.appContext);
-        notifier.appContext = NULL;
-        PyOS_InputHook = NULL;
-    }
-    return PyLong_FromLong(started);
-}
-
 static struct PyMethodDef methods[] = {
-   {"start",
-    (PyCFunction)start,
-    METH_NOARGS,
-    "starts the Xt event loop"
-   },
-   {"stop",
-    (PyCFunction)stop,
-    METH_NOARGS,
-    "stops the Xt event loop"
-   },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
 #if PY3K
+static void freeevents(void* module)
+{
+    XtDestroyApplicationContext(notifier.appContext);
+    notifier.appContext = NULL;
+    PyOS_InputHook = NULL;
+}
+
 static struct PyModuleDef moduledef = {
-    PyModuleDef_HEAD_INIT,
-    "events",
-    "events module",
-    -1,
-    methods,
-    NULL,
-    NULL,
-    NULL,
-    NULL
+    PyModuleDef_HEAD_INIT,  /* m_base */
+    "events",               /* m_name */
+    "events module",        /* m_doc */
+    -1,                     /* m_size */
+    methods,                /* m_methods */
+    NULL,                   /* m_reload */
+    NULL,                   /* m_traverse */
+    NULL,                   /* m_clear */
+    freeevents              /* m_free */
 };
 
 PyObject* PyInit_events(void)
@@ -364,6 +336,8 @@ void initevents(void)
     notifier.observers[1] = NULL;
     notifier.nobservers[0] = 0;
     notifier.nobservers[1] = 0;
+    notifier.appContext = XtCreateApplicationContext();
+    PyOS_InputHook = wait_for_stdin;
 #if PY3K
     return module;
 #endif
