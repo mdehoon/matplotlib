@@ -493,12 +493,15 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
 
     if (filePtr->mask & TCL_READABLE) {
         PyEvents_DeleteSocket(filePtr->read);
+        Py_DECREF(filePtr->read);
     }
     if (filePtr->mask & TCL_WRITABLE) {
         PyEvents_DeleteSocket(filePtr->write);
+        Py_DECREF(filePtr->write);
     }
     if (filePtr->mask & TCL_EXCEPTION) {
         PyEvents_DeleteSocket(filePtr->except);
+        Py_DECREF(filePtr->except);
     }
 
     ckfree(filePtr);
