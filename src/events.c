@@ -7,13 +7,11 @@
 #if PY_MAJOR_VERSION >= 3
 #define PY3K 1
 #else
+#if PY_MINOR_VERSION < 7
+#error Python version should be 2.7 or newer
+#else
 #define PY3K 0
 #endif
-
-/* Must define PyVarObject_HEAD_INIT for Python 2.5 or older */
-#ifndef PyVarObject_HEAD_INIT
-#define PyVarObject_HEAD_INIT(type, size)       \
-        PyObject_HEAD_INIT(type) size,
 #endif
 
 static struct NotifierState {
