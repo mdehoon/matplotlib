@@ -5,6 +5,10 @@
 
 typedef void (*Observer)(void);
 
+#define PyEvents_READABLE 1
+#define PyEvents_WRITABLE 2
+#define PyEvents_EXCEPTION 4
+
 /* C API functions */
 #define PyEvents_AddTimer_NUM 0
 #define PyEvents_AddTimer_RETURN PyObject*

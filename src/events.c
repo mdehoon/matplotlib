@@ -3,7 +3,6 @@
 #include <Python.h>
 #define EVENTS_MODULE
 #include "events.h"
-#include <tcl.h>
 
 #if PY_MAJOR_VERSION >= 3
 #define PY3K 1
@@ -132,16 +131,16 @@ FileProc(XtPointer clientData,int *fd, XtInputId *id)
 
 typedef struct {
     PyObject_HEAD
-    ClientData clientData;
+    void* clientData;
 } FileHandlerDataObject;
 
 static XtInputId
 PyEvents_CreateFileHandler(
     int fd,			/* Handle of stream to watch. */
-    int mask,			/* OR'ed combination of TCL_READABLE,
-				 * TCL_WRITABLE, and TCL_EXCEPTION: indicates
-				 * conditions under which proc should be
-				 * called. */
+    int mask,			/* OR'ed combination of PyEvents_READABLE,
+				 * PyEvents_WRITABLE, and PyEvents_EXCEPTION:
+                                 * indicates conditions under which proc
+                                 * should be called. */
     void(*proc)(void* info, int mask),
     void* argument)		/* Arbitrary data to pass to proc. */
 {
@@ -151,9 +150,12 @@ PyEvents_CreateFileHandler(
     context->info = argument;
     context->mask = mask;
     switch (mask) {
-        case TCL_READABLE: condition = (XtPointer)XtInputReadMask; break;
-        case TCL_WRITABLE: condition = (XtPointer)XtInputWriteMask; break;
-        case TCL_EXCEPTION: condition = (XtPointer)XtInputExceptMask; break;
+        case PyEvents_READABLE:
+            condition = (XtPointer)XtInputReadMask; break;
+        case PyEvents_WRITABLE:
+            condition = (XtPointer)XtInputWriteMask; break;
+        case PyEvents_EXCEPTION:
+            condition = (XtPointer)XtInputExceptMask; break;
         default: return 0;
     }
     return XtAppAddInput(notifier.appContext, fd, condition, FileProc, context);

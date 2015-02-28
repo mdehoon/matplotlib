@@ -446,7 +446,10 @@ CreateFileHandler(
     filePtr->argument = argument;
     if (mask & TCL_READABLE) {
         if (!(filePtr->mask & TCL_READABLE)) {
-            filePtr->read = PyEvents_CreateFileHandler(fd, mask, TclFileProc, filePtr);
+            filePtr->read = PyEvents_CreateFileHandler(fd,
+                                                       PyEvents_READABLE,
+                                                       TclFileProc,
+                                                       filePtr);
         }
     } else {
         if (filePtr->mask & TCL_READABLE) {
@@ -455,7 +458,10 @@ CreateFileHandler(
     }
     if (mask & TCL_WRITABLE) {
         if (!(filePtr->mask & TCL_WRITABLE)) {
-            filePtr->write = PyEvents_CreateFileHandler(fd, mask, TclFileProc, filePtr);
+            filePtr->write = PyEvents_CreateFileHandler(fd,
+                                                        PyEvents_WRITABLE,
+                                                        TclFileProc,
+                                                        filePtr);
         }
     } else {
         if (filePtr->mask & TCL_WRITABLE) {
@@ -464,7 +470,10 @@ CreateFileHandler(
     }
     if (mask & TCL_EXCEPTION) {
         if (!(filePtr->mask & TCL_EXCEPTION)) {
-            filePtr->except = PyEvents_CreateFileHandler(fd, mask, TclFileProc, filePtr);
+            filePtr->except = PyEvents_CreateFileHandler(fd,
+                                                         PyEvents_EXCEPTION,
+                                                         TclFileProc,
+                                                         filePtr);
         }
     } else {
         if (filePtr->mask & TCL_EXCEPTION) {
