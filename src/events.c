@@ -119,23 +119,23 @@ typedef struct {
     void(*proc)(void* info, int mask);
     void* info;
     int mask;
-} FileHandlerObject;
+} SocketObject;
 
 static void
 FileProc(XtPointer clientData, int *fd, XtInputId *id)
 {
-    FileHandlerObject* object = (FileHandlerObject*)clientData;
+    SocketObject* object = (SocketObject*)clientData;
     void(*proc)(void* info, int mask) = object->proc;
     void* info = object->info;
     int mask = object->mask;
     return proc(info, mask);
 }
 
-static PyTypeObject FileHandlerType = {
+static PyTypeObject SocketType = {
     PyObject_HEAD_INIT(NULL)
     0,                         /*ob_size*/
-    "events.FileHandler",      /*tp_name*/
-    sizeof(FileHandlerObject), /*tp_basicsize*/
+    "events.Socket",           /*tp_name*/
+    sizeof(SocketObject),      /*tp_basicsize*/
     0,                         /*tp_itemsize*/
     0,                         /*tp_dealloc*/
     0,                         /*tp_print*/
@@ -153,11 +153,11 @@ static PyTypeObject FileHandlerType = {
     0,                         /*tp_setattro*/
     0,                         /*tp_as_buffer*/
     Py_TPFLAGS_DEFAULT,        /*tp_flags*/
-    "FileHandler object",      /*tp_doc */
+    "Socket object",           /*tp_doc */
 };
 
 static PyObject*
-PyEvents_CreateFileHandler(
+PyEvents_CreateSocket(
     int fd,			/* Handle of stream to watch. */
     int mask,			/* OR'ed combination of PyEvents_READABLE,
 				 * PyEvents_WRITABLE, and PyEvents_EXCEPTION:
@@ -168,7 +168,7 @@ PyEvents_CreateFileHandler(
 {
     XtInputId input;
     XtPointer condition;
-    FileHandlerObject* object;
+    SocketObject* object;
     switch (mask) {
         case PyEvents_READABLE:
             condition = (XtPointer)XtInputReadMask; break;
@@ -178,7 +178,7 @@ PyEvents_CreateFileHandler(
             condition = (XtPointer)XtInputExceptMask; break;
         default: return 0;
     }
-    object = (FileHandlerObject*)PyType_GenericNew(&FileHandlerType, NULL, NULL);
+    object = (SocketObject*)PyType_GenericNew(&SocketType, NULL, NULL);
     input = XtAppAddInput(notifier.appContext, fd, condition, FileProc, (XtPointer)object);
     object->proc = proc;
     object->info = argument;
@@ -188,11 +188,11 @@ PyEvents_CreateFileHandler(
 }
 
 static void
-PyEvents_DeleteFileHandler(PyObject* argument)
+PyEvents_DeleteSocket(PyObject* argument)
 {
-    if (argument && PyObject_TypeCheck(argument, &FileHandlerType))
+    if (argument && PyObject_TypeCheck(argument, &SocketType))
     {
-        FileHandlerObject* object = (FileHandlerObject*)argument;
+        SocketObject* object = (SocketObject*)argument;
         XtInputId input = object->input;
         if (input) {
             XtRemoveInput(input);
@@ -335,7 +335,7 @@ void initevents(void)
 
     if (PyType_Ready(&TimerType) < 0)
         goto error;
-    if (PyType_Ready(&FileHandlerType) < 0)
+    if (PyType_Ready(&SocketType) < 0)
         goto error;
 #if PY3K
     module = PyModule_Create(&moduledef);
@@ -351,8 +351,8 @@ void initevents(void)
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
     PyEvents_API[PyEvents_ProcessEvent_NUM] = (void *)PyEvents_ProcessEvent;
     PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
-    PyEvents_API[PyEvents_CreateFileHandler_NUM] = (void *)PyEvents_CreateFileHandler;
-    PyEvents_API[PyEvents_DeleteFileHandler_NUM] = (void *)PyEvents_DeleteFileHandler;
+    PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
+    PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
     PyEvents_API[PyEvents_AddObserver_NUM] = (void *)PyEvents_AddObserver;
     PyEvents_API[PyEvents_RemoveObserver_NUM] = (void *)PyEvents_RemoveObserver;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);

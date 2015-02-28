@@ -402,40 +402,40 @@ CreateFileHandler(
     filePtr->clientData = clientData;
     if (mask & TCL_READABLE) {
         if (!(filePtr->mask & TCL_READABLE)) {
-            filePtr->read = PyEvents_CreateFileHandler(fd,
-                                                       PyEvents_READABLE,
-                                                       FileProc,
-                                                       filePtr);
+            filePtr->read = PyEvents_CreateSocket(fd,
+                                                  PyEvents_READABLE,
+                                                  FileProc,
+                                                  filePtr);
         }
     } else {
         if (filePtr->mask & TCL_READABLE) {
-            PyEvents_DeleteFileHandler(filePtr->read);
+            PyEvents_DeleteSocket(filePtr->read);
             Py_DECREF(filePtr->read);
         }
     }
     if (mask & TCL_WRITABLE) {
         if (!(filePtr->mask & TCL_WRITABLE)) {
-            filePtr->write = PyEvents_CreateFileHandler(fd,
-                                                        PyEvents_WRITABLE,
-                                                        FileProc,
-                                                        filePtr);
+            filePtr->write = PyEvents_CreateSocket(fd,
+                                                   PyEvents_WRITABLE,
+                                                   FileProc,
+                                                   filePtr);
         }
     } else {
         if (filePtr->mask & TCL_WRITABLE) {
-            PyEvents_DeleteFileHandler(filePtr->write);
+            PyEvents_DeleteSocket(filePtr->write);
             Py_DECREF(filePtr->write);
         }
     }
     if (mask & TCL_EXCEPTION) {
         if (!(filePtr->mask & TCL_EXCEPTION)) {
-            filePtr->except = PyEvents_CreateFileHandler(fd,
-                                                         PyEvents_EXCEPTION,
-                                                         FileProc,
-                                                         filePtr);
+            filePtr->except = PyEvents_CreateSocket(fd,
+                                                    PyEvents_EXCEPTION,
+                                                    FileProc,
+                                                    filePtr);
         }
     } else {
         if (filePtr->mask & TCL_EXCEPTION) {
-            PyEvents_DeleteFileHandler(filePtr->except);
+            PyEvents_DeleteSocket(filePtr->except);
             Py_DECREF(filePtr->except);
         }
     }
@@ -492,13 +492,13 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
      */
 
     if (filePtr->mask & TCL_READABLE) {
-        PyEvents_DeleteFileHandler(filePtr->read);
+        PyEvents_DeleteSocket(filePtr->read);
     }
     if (filePtr->mask & TCL_WRITABLE) {
-        PyEvents_DeleteFileHandler(filePtr->write);
+        PyEvents_DeleteSocket(filePtr->write);
     }
     if (filePtr->mask & TCL_EXCEPTION) {
-        PyEvents_DeleteFileHandler(filePtr->except);
+        PyEvents_DeleteSocket(filePtr->except);
     }
 
     ckfree(filePtr);

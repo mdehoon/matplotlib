@@ -22,12 +22,12 @@ typedef void (*Observer)(void);
 #define PyEvents_HavePendingEvents_NUM 3
 #define PyEvents_HavePendingEvents_RETURN int
 #define PyEvents_HavePendingEvents_PROTO (void)
-#define PyEvents_CreateFileHandler_NUM 4
-#define PyEvents_CreateFileHandler_RETURN PyObject*
-#define PyEvents_CreateFileHandler_PROTO (int fd, int mask, void(*proc)(void* info, int mask), void* argument)
-#define PyEvents_DeleteFileHandler_NUM 5
-#define PyEvents_DeleteFileHandler_RETURN void
-#define PyEvents_DeleteFileHandler_PROTO (PyObject* socket)
+#define PyEvents_CreateSocket_NUM 4
+#define PyEvents_CreateSocket_RETURN PyObject*
+#define PyEvents_CreateSocket_PROTO (int fd, int mask, void(*proc)(void* info, int mask), void* argument)
+#define PyEvents_DeleteSocket_NUM 5
+#define PyEvents_DeleteSocket_RETURN void
+#define PyEvents_DeleteSocket_PROTO (PyObject* socket)
 #define PyEvents_AddObserver_NUM 6
 #define PyEvents_AddObserver_RETURN void
 #define PyEvents_AddObserver_PROTO (int activity, Observer observer)
@@ -46,8 +46,8 @@ static PyEvents_AddTimer_RETURN PyEvents_AddTimer PyEvents_AddTimer_PROTO;
 static PyEvents_RemoveTimer_RETURN PyEvents_RemoveTimer PyEvents_RemoveTimer_PROTO;
 static PyEvents_ProcessEvent_RETURN PyEvents_ProcessEvent PyEvents_ProcessEvent_PROTO;
 static PyEvents_HavePendingEvents_RETURN PyEvents_HavePendingEvents PyEvents_HavePendingEvents_PROTO;
-static PyEvents_CreateFileHandler_RETURN PyEvents_CreateFileHandler PyEvents_CreateFileHandler_PROTO;
-static PyEvents_DeleteFileHandler_RETURN PyEvents_DeleteFileHandler PyEvents_DeleteFileHandler_PROTO;
+static PyEvents_CreateSocket_RETURN PyEvents_CreateSocket PyEvents_CreateSocket_PROTO;
+static PyEvents_DeleteSocket_RETURN PyEvents_DeleteSocket PyEvents_DeleteSocket_PROTO;
 static PyEvents_AddObserver_RETURN PyEvents_AddObserver PyEvents_AddObserver_PROTO;
 static PyEvents_RemoveObserver_RETURN PyEvents_RemoveObserver PyEvents_RemoveObserver_PROTO;
 
@@ -64,10 +64,10 @@ static void **PyEvents_API;
  (*(PyEvents_ProcessEvent_RETURN (*)PyEvents_ProcessEvent_PROTO) PyEvents_API[PyEvents_ProcessEvent_NUM])
 #define PyEvents_HavePendingEvents \
  (*(PyEvents_HavePendingEvents_RETURN (*)PyEvents_HavePendingEvents_PROTO) PyEvents_API[PyEvents_HavePendingEvents_NUM])
-#define PyEvents_CreateFileHandler \
- (*(PyEvents_CreateFileHandler_RETURN (*)PyEvents_CreateFileHandler_PROTO) PyEvents_API[PyEvents_CreateFileHandler_NUM])
-#define PyEvents_DeleteFileHandler \
- (*(PyEvents_DeleteFileHandler_RETURN (*)PyEvents_DeleteFileHandler_PROTO) PyEvents_API[PyEvents_DeleteFileHandler_NUM])
+#define PyEvents_CreateSocket \
+ (*(PyEvents_CreateSocket_RETURN (*)PyEvents_CreateSocket_PROTO) PyEvents_API[PyEvents_CreateSocket_NUM])
+#define PyEvents_DeleteSocket \
+ (*(PyEvents_DeleteSocket_RETURN (*)PyEvents_DeleteSocket_PROTO) PyEvents_API[PyEvents_DeleteSocket_NUM])
 #define PyEvents_AddObserver \
  (*(PyEvents_AddObserver_RETURN (*)PyEvents_AddObserver_PROTO) PyEvents_API[PyEvents_AddObserver_NUM])
 
