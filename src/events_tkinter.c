@@ -410,6 +410,7 @@ CreateFileHandler(
     } else {
         if (filePtr->mask & TCL_READABLE) {
             PyEvents_DeleteFileHandler(filePtr->read);
+            Py_DECREF(filePtr->read);
         }
     }
     if (mask & TCL_WRITABLE) {
@@ -422,6 +423,7 @@ CreateFileHandler(
     } else {
         if (filePtr->mask & TCL_WRITABLE) {
             PyEvents_DeleteFileHandler(filePtr->write);
+            Py_DECREF(filePtr->write);
         }
     }
     if (mask & TCL_EXCEPTION) {
@@ -434,6 +436,7 @@ CreateFileHandler(
     } else {
         if (filePtr->mask & TCL_EXCEPTION) {
             PyEvents_DeleteFileHandler(filePtr->except);
+            Py_DECREF(filePtr->except);
         }
     }
     filePtr->mask = mask;
