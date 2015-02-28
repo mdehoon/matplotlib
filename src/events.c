@@ -10,6 +10,12 @@
 #define PY3K 0
 #endif
 
+/* Must define PyVarObject_HEAD_INIT for Python 2.5 or older */
+#ifndef PyVarObject_HEAD_INIT
+#define PyVarObject_HEAD_INIT(type, size)       \
+        PyObject_HEAD_INIT(type) size,
+#endif
+
 static struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
     Observer* observers[2];
@@ -23,8 +29,7 @@ typedef struct {
 } TimerObject;
 
 static PyTypeObject TimerType = {
-    PyObject_HEAD_INIT(NULL)
-    0,                         /*ob_size*/
+    PyVarObject_HEAD_INIT(NULL, 0)
     "events.Timer",            /*tp_name*/
     sizeof(TimerObject),       /*tp_basicsize*/
     0,                         /*tp_itemsize*/
@@ -132,8 +137,7 @@ FileProc(XtPointer clientData, int *fd, XtInputId *id)
 }
 
 static PyTypeObject SocketType = {
-    PyObject_HEAD_INIT(NULL)
-    0,                         /*ob_size*/
+    PyVarObject_HEAD_INIT(NULL, 0)
     "events.Socket",           /*tp_name*/
     sizeof(SocketObject),      /*tp_basicsize*/
     0,                         /*tp_itemsize*/
