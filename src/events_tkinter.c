@@ -20,9 +20,9 @@ typedef struct FileHandler {
     int readyMask;              /* Events that have been seen since the last
                                  * time FileHandlerEventProc was called for
                                  * this file. */
-    PyObject* read;             /* Xt read callback handle. */
-    PyObject* write;            /* Xt write callback handle. */
-    PyObject* except;           /* Xt exception callback handle. */
+    PyObject* read;             /* events.Socket object. */
+    PyObject* write;            /* events.Socket object. */
+    PyObject* except;           /* events.Socket object. */
     void(*proc)(void*, int);    /* Procedure to call */
     void* clientData;           /* Argument to pass to proc. */
     struct FileHandler *nextPtr;/* Next in list of all files we care about. */
@@ -77,22 +77,6 @@ static void restore_service_mode(void)
 {
     Tcl_SetServiceMode(notifier.mode);
 }
-
-/*
- *----------------------------------------------------------------------
- *
- * InitNotifier --
- *
- *	Initializes the notifier state.
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Creates a new exit handler.
- *
- *----------------------------------------------------------------------
- */
 
 /*
  *----------------------------------------------------------------------
@@ -455,6 +439,8 @@ static struct PyMethodDef methods[] = {
 static void freeevents_tkinter(void* module)
 {
     Tcl_NotifierProcs np;
+    PyEvents_RemoveObserver(0, set_service_mode);
+    PyEvents_RemoveObserver(1, restore_service_mode);
     memset(&np, 0, sizeof(np));
     Tcl_SetNotifier(&np);
 }

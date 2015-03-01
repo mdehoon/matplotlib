@@ -70,6 +70,8 @@ static void **PyEvents_API;
  (*(PyEvents_DeleteSocket_RETURN (*)PyEvents_DeleteSocket_PROTO) PyEvents_API[PyEvents_DeleteSocket_NUM])
 #define PyEvents_AddObserver \
  (*(PyEvents_AddObserver_RETURN (*)PyEvents_AddObserver_PROTO) PyEvents_API[PyEvents_AddObserver_NUM])
+#define PyEvents_RemoveObserver \
+ (*(PyEvents_RemoveObserver_RETURN (*)PyEvents_RemoveObserver_PROTO) PyEvents_API[PyEvents_RemoveObserver_NUM])
 
 /* Return -1 on error, 0 on success.
  * PyCapsule_Import will set an exception if there's an error.
