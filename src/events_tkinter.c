@@ -8,14 +8,6 @@
 #define PY3K 0
 #endif
 
-extern int TclInExit(void); /* private function? */
-
-/*
- * The following static indicates whether this module has been initialized.
- */
-
-static int initialized = 0;
-
 /*
  * This structure is used to keep track of the notifier info for a a
  * registered file.
@@ -63,23 +55,6 @@ static struct NotifierState {
     int mode;                   /* Tcl's service mode */
 } notifier;
 
-/*
- *----------------------------------------------------------------------
- *
- * NotifierExitHandler --
- *
- *      This function is called to cleanup the notifier state before Tcl is
- *      unloaded.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      Destroys the notifier window.
- *
- *----------------------------------------------------------------------
- */
-
 static void
 NotifierExitHandler(
     ClientData clientData)      /* Not used. */
@@ -91,7 +66,6 @@ NotifierExitHandler(
     for (; notifier.firstFileHandlerPtr != NULL; ) {
         Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
     }
-    initialized = 0;
 }
 
 static void set_service_mode(void)
@@ -120,25 +94,6 @@ static void restore_service_mode(void)
  *----------------------------------------------------------------------
  */
 
-void
-InitNotifier(void)
-{
-    /*
-     * Only reinitialize if we are not in exit handling. The notifier can get
-     * reinitialized after its own exit handler has run, because of exit
-     * handlers for the I/O and timer sub-systems (order dependency).
-     */
-
-    if (TclInExit()) {
-        return;
-    }
-
-    initialized = 1;
-    Tcl_CreateExitHandler(NotifierExitHandler, NULL);
-    PyEvents_AddObserver(0, set_service_mode);
-    PyEvents_AddObserver(1, restore_service_mode);
-}
-
 /*
  *----------------------------------------------------------------------
  *
@@ -162,12 +117,8 @@ InitNotifier(void)
 static int
 WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
 {
-    int timeout;
-    if (!initialized) {
-        InitNotifier();
-    }
     if (timePtr) {
-        timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
+        int timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
         if (timeout == 0) {
             if (!PyEvents_HavePendingEvents()) {
                 return 0;
@@ -212,10 +163,6 @@ SetTimer(
     const Tcl_Time *timePtr)            /* Timeout value, may be NULL. */
 {
     unsigned long timeout;
-    if (!initialized) {
-        InitNotifier();
-    }
-
     if (notifier.currentTimeout != 0) {
         PyEvents_RemoveTimer(notifier.currentTimeout);
         Py_DECREF(notifier.currentTimeout);
@@ -377,10 +324,6 @@ CreateFileHandler(
     ClientData clientData)      /* Arbitrary data to pass to proc. */
 {
     FileHandler* filePtr;
-    if (!initialized) {
-        InitNotifier();
-    }
-
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
             filePtr = filePtr->nextPtr) {
         if (filePtr->fd == fd) {
@@ -464,9 +407,6 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
 {
     FileHandler *prevPtr;
     FileHandler* filePtr = NULL;
-    if (!initialized) {
-        InitNotifier();
-    }
 
     /*
      * Find the entry for the given file (and return if there isn't one).
@@ -507,55 +447,28 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
     ckfree(filePtr);
 }
 
-static PyObject*
-load(PyObject* unused)
-{
-    Tcl_NotifierProcs np;
-    memset(&np, 0, sizeof(np));
-    np.createFileHandlerProc = CreateFileHandler;
-    np.deleteFileHandlerProc = DeleteFileHandler;
-    np.setTimerProc = SetTimer;
-    np.waitForEventProc = WaitForEvent;
-    Tcl_SetNotifier(&np);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject*
-unload(PyObject* unused)
-{
-    Tcl_NotifierProcs np;
-    memset(&np, 0, sizeof(np));
-    Tcl_SetNotifier(&np);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
 static struct PyMethodDef methods[] = {
-   {"load",
-    (PyCFunction)load,
-    METH_NOARGS,
-    "adds the Tcl/Tk notifier from the event loop"
-   },
-   {"unload",
-    (PyCFunction)unload,
-    METH_NOARGS,
-    "removes the Tcl/Tk notifier from the event loop"
-   },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
 #if PY3K
+static void freeevents_tkinter(void* module)
+{
+    Tcl_NotifierProcs np;
+    memset(&np, 0, sizeof(np));
+    Tcl_SetNotifier(&np);
+}
+
 static struct PyModuleDef moduledef = {
-    PyModuleDef_HEAD_INIT,
-    "events_tkinter",
-    "events_tkinter module",
-    -1,
-    methods,
-    NULL,
-    NULL,
-    NULL,
-    NULL
+    PyModuleDef_HEAD_INIT,      /* m_base */
+    "events_tkinter",           /* m_name */
+    "events_tkinter module",    /* m_doc */
+    -1,                         /* m_size */
+    methods,                    /* m_methods */
+    NULL,                       /* m_reload */
+    NULL,                       /* m_traverse */
+    NULL,                       /* m_clear */
+    freeevents_tkinter          /* m_free */
 };
 
 PyObject* PyInit_events_tkinter(void)
@@ -566,6 +479,7 @@ void initevents_tkinter(void)
 #endif
 {
     PyObject *module;
+    Tcl_NotifierProcs np;
 #if PY3K
     module = PyModule_Create(&moduledef);
     if (module==NULL) return NULL;
@@ -582,7 +496,15 @@ void initevents_tkinter(void)
 #else
         return;
 #endif
-    InitNotifier();
+    memset(&np, 0, sizeof(np));
+    np.createFileHandlerProc = CreateFileHandler;
+    np.deleteFileHandlerProc = DeleteFileHandler;
+    np.setTimerProc = SetTimer;
+    np.waitForEventProc = WaitForEvent;
+    Tcl_SetNotifier(&np);
+    Tcl_CreateExitHandler(NotifierExitHandler, NULL);
+    PyEvents_AddObserver(0, set_service_mode);
+    PyEvents_AddObserver(1, restore_service_mode);
 #if PY3K
     return module;
 #endif
