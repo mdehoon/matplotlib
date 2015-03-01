@@ -1,5 +1,10 @@
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <X11/Intrinsic.h>
+#include <X11/Shell.h>
+#include <X11/StringDefs.h>
+#include <X11/Xaw/Command.h>
 #include <Python.h>
 #define EVENTS_MODULE
 #include "events.h"
@@ -272,7 +277,47 @@ static int wait_for_stdin(void)
     return 1;
 }
 
+static void Action (Widget w, XtPointer client_data, XtPointer call_data) {
+  fprintf (stderr, "You pressed me.\n");
+}
+
+static PyObject*
+test(PyObject* self)
+{
+    Widget win, button;
+    int argc = 0;
+    Display* d = XtOpenDisplay(notifier.appContext,
+                               NULL,
+                               NULL,
+                               "Python events module / Xt",
+                               NULL,
+                               0,
+                               &argc,
+                               NULL);
+    win = XtAppCreateShell(NULL,
+                           NULL,
+                           applicationShellWidgetClass,
+                           d,
+                           NULL,
+                           0);
+    button = XtVaCreateWidget (
+                "XtButton",
+                commandWidgetClass,
+                win,
+                NULL);
+    XtManageChild(button);
+    XtAddCallback(button, XtNcallback, Action, 0);
+    XtRealizeWidget(win);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 static struct PyMethodDef methods[] = {
+   {"test",
+    (PyCFunction)test,
+    METH_NOARGS,
+    "open a test window."
+   },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
@@ -332,6 +377,7 @@ void initevents(void)
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
+    XtToolkitInitialize();
     notifier.observers[0] = NULL;
     notifier.observers[1] = NULL;
     notifier.nobservers[0] = 0;

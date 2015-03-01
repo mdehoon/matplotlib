@@ -1900,9 +1900,9 @@ class Events(OptionalBackendPackage):
             'src/events.c',
             ]
         ext = make_extension('events', sources)
-        ext.extra_link_args.extend(['-ltcl8.6'])
-        ext.extra_link_args.extend(['-ltk8.6'])
+        ext.extra_link_args.extend(['-lX11'])
         ext.extra_link_args.extend(['-lXt'])
+        ext.extra_link_args.extend(['-lXaw'])
         return ext
 
 class Windowing(OptionalBackendPackage):
