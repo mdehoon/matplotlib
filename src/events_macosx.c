@@ -345,7 +345,7 @@ PyObject* PyInit_events(void)
 
 #else
 
-void initevents(void)
+void initevents_macosx(void)
 #endif
 {
     PyObject *module;
@@ -359,7 +359,7 @@ void initevents(void)
 #if PY3K
     module = PyModule_Create(&moduledef);
 #else
-    module = Py_InitModule4("events",
+    module = Py_InitModule4("events_macosx",
                             methods,
                             "events module",
                             NULL,

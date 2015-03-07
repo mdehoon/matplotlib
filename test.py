@@ -1,5 +1,6 @@
 import sys
-import events
+# import events
+import events_macosx as events
 import events_tkinter
 
 if sys.version_info[0] < 3:

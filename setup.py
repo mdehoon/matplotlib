@@ -104,6 +104,7 @@ mpl_packages = [
     setupext.Windowing(),
     setupext.Events(),
     setupext.Events_tkinter(),
+    setupext.Events_macosx(),
     'Optional LaTeX dependencies',
     setupext.DviPng(),
     setupext.Ghostscript(),
