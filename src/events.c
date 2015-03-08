@@ -240,6 +240,8 @@ static void sigint_catcher(int signo)
     XtNoticeSignal(sigint_handler_id);
 }
 
+extern void run(void);
+
 static int wait_for_stdin(void)
 {
     int i;
@@ -260,7 +262,12 @@ static int wait_for_stdin(void)
     sig_t py_sigint_catcher = PyOS_setsig(SIGINT, sigint_catcher);
     sigint_handler_id = XtAppAddSignal(context, sigint_handler, &interrupted);
     while (!input_available && !interrupted) {
+#ifdef USE_COCOA
+        while(XtAppPending(context)) XtAppProcessEvent(context, XtIMAll);
+        run();
+#else
         XtAppProcessEvent(context, XtIMAll);
+#endif
     }
     PyOS_setsig(SIGINT, py_sigint_catcher);
     XtRemoveSignal(sigint_handler_id);

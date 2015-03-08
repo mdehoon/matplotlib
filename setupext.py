@@ -1900,6 +1900,7 @@ class Events(OptionalBackendPackage):
             'src/events.c',
             ]
         ext = make_extension('events', sources)
+        ext.define_macros.append(('USE_COCOA', None))
         ext.extra_link_args.extend(['-lX11'])
         ext.extra_link_args.extend(['-lXt'])
         ext.extra_link_args.extend(['-lXaw'])
@@ -1909,12 +1910,9 @@ class Events_macosx(OptionalBackendPackage):
     name = "events_macosx"
     def get_extension(self):
         sources = [
-            'src/events_macosx.c',
+            'src/events_macosx.m',
             ]
         ext = make_extension('events_macosx', sources)
-        ext.extra_link_args.extend(['-lX11'])
-        ext.extra_link_args.extend(['-lXt'])
-        ext.extra_link_args.extend(['-lXaw'])
         return ext
 
 class Windowing(OptionalBackendPackage):
