@@ -79,7 +79,7 @@ static void **PyEvents_API;
 static int
 import_events(void)
 {
-    PyEvents_API = (void **)PyCapsule_Import("events._C_API", 0);
+    PyEvents_API = (void **)PyCapsule_Import("events_macosx._C_API", 0);
     return (PyEvents_API != NULL) ? 0 : -1;
 }
 

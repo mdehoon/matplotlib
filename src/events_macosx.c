@@ -260,7 +260,8 @@ static int wait_for_stdin(void)
     sig_t py_sigint_catcher = PyOS_setsig(SIGINT, sigint_catcher);
     sigint_handler_id = XtAppAddSignal(context, sigint_handler, &interrupted);
     while (!input_available && !interrupted) {
-        XtAppProcessEvent(context, XtIMAll);
+        while(XtAppPending(notifier.appContext)) XtAppProcessEvent(context, XtIMAll);
+        usleep(1);
     }
     PyOS_setsig(SIGINT, py_sigint_catcher);
     XtRemoveSignal(sigint_handler_id);
@@ -374,7 +375,7 @@ void initevents_macosx(void)
     PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
     PyEvents_API[PyEvents_AddObserver_NUM] = (void *)PyEvents_AddObserver;
     PyEvents_API[PyEvents_RemoveObserver_NUM] = (void *)PyEvents_RemoveObserver;
-    c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
+    c_api_object = PyCapsule_New((void *)PyEvents_API, "events_macosx._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
     XtToolkitInitialize();
