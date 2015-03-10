@@ -1925,9 +1925,7 @@ class Events_macosx(OptionalBackendPackage):
             'src/events_macosx.m',
             ]
         ext = make_extension('events', sources)
-        ext.extra_link_args.extend(['-lX11'])
-        ext.extra_link_args.extend(['-lXt'])
-        ext.extra_link_args.extend(['-lXaw'])
+        ext.extra_link_args.extend(['-framework', 'Cocoa'])
         return ext
 
 class Windowing(OptionalBackendPackage):
