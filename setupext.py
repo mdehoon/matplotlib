@@ -1900,7 +1900,7 @@ class Events(OptionalBackendPackage):
         if platform.system() in ('Windows', 'Darwin'):
             raise CheckFailed("Linux/Unix only")
 
-        return 'darwin'
+        return 'Linux/Unix'
 
     def get_extension(self):
         sources = [

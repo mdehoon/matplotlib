@@ -264,7 +264,7 @@ PyEvents_DeleteSocket(PyObject* argument)
 static int
 PyEvents_HavePendingEvents(void)
 {
-    return 0;
+    return 1;
 }
 
 static void
@@ -325,6 +325,7 @@ static CGEventRef _eventtap_callback(CGEventTapProxy proxy, CGEventType type, CG
 
 static int wait_for_stdin(void)
 {
+    int i;
     int interrupted = 0;
     const UInt8 buffer[] = "/dev/fd/0";
     const CFIndex n = (CFIndex)strlen((char*)buffer);
@@ -348,6 +349,10 @@ static int wait_for_stdin(void)
         CFSocketRef sigint_socket = NULL;
         PyOS_sighandler_t py_sigint_handler = NULL;
         CFStreamClientContext clientContext = {0, NULL, NULL, NULL, NULL};
+        for (i = 0; i < notifier.nobservers[0]; i++) {
+            Observer* observer = notifier.observers[i];
+            (*observer)();
+        }
         clientContext.info = runloop;
         CFReadStreamSetClient(stream,
                               kCFStreamEventHasBytesAvailable,
@@ -402,7 +407,6 @@ static int wait_for_stdin(void)
             if (interrupted || CFReadStreamHasBytesAvailable(stream)) break;
         }
         [pool release];
-
         if (py_sigint_handler) PyOS_setsig(SIGINT, py_sigint_handler);
         CFReadStreamUnscheduleFromRunLoop(stream,
                                           runloop,
@@ -411,6 +415,10 @@ static int wait_for_stdin(void)
         if (error==0) {
             close(channel[0]);
             close(channel[1]);
+        }
+        for (i = 0; i < notifier.nobservers[1]; i++) {
+            Observer* observer = notifier.observers[i];
+            (*observer)();
         }
 #ifdef PYOSINPUTHOOK_REPETITIVE
     }

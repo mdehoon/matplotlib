@@ -250,15 +250,15 @@ static int wait_for_stdin(void)
     int fd = fileno(stdin);
     XtAppContext context;
     context =  notifier.appContext;
+    for (i = 0; i < notifier.nobservers[0]; i++) {
+        Observer* observer = notifier.observers[i];
+        (*observer)();
+    }
     XtInputId input = XtAppAddInput(context,
                                     fd,
                                     (XtPointer)XtInputReadMask,
                                     stdin_callback,
                                     &input_available);
-    for (i = 0; i < notifier.nobservers[0]; i++) {
-        Observer* observer = notifier.observers[i];
-        (*observer)();
-    }
     sig_t py_sigint_catcher = PyOS_setsig(SIGINT, sigint_catcher);
     sigint_handler_id = XtAppAddSignal(context, sigint_handler, &interrupted);
     while (!input_available && !interrupted) {
