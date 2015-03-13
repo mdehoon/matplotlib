@@ -101,6 +101,7 @@ static void restore_service_mode(void)
 static int
 WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
 {
+/*
     if (timePtr) {
         int timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
         if (timeout == 0) {
@@ -113,6 +114,12 @@ WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
     }
     PyEvents_ProcessEvent();
     return 1;
+*/
+    int milliseconds = INT_MAX;
+    if (timePtr) {
+        milliseconds = timePtr->sec * 1000 + timePtr->usec / 1000;
+    }
+    return PyEvents_WaitForEvent(milliseconds);
 }
 
 static void TimerProc(PyObject* timer)

@@ -262,6 +262,20 @@ PyEvents_DeleteSocket(PyObject* argument)
 }
 
 static int
+PyEvents_WaitForEvent(int milliseconds)
+{
+    CFTimeInterval seconds = milliseconds / 1000.0;
+    SInt32 status = CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, true);
+    switch (status) { 
+        case kCFRunLoopRunFinished: return -1;
+        case kCFRunLoopRunStopped: return -1;
+        case kCFRunLoopRunTimedOut: return 0;
+        case kCFRunLoopRunHandledSource: return 1;
+    }
+    return -1;
+}
+
+static int
 PyEvents_HavePendingEvents(void)
 {
     return 1;
@@ -561,6 +575,7 @@ void initevents(void)
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
     PyEvents_API[PyEvents_ProcessEvent_NUM] = (void *)PyEvents_ProcessEvent;
     PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
+    PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
     PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
     PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
     PyEvents_API[PyEvents_AddObserver_NUM] = (void *)PyEvents_AddObserver;
