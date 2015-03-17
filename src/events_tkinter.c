@@ -68,16 +68,6 @@ NotifierExitHandler(
     }
 }
 
-static void set_service_mode(void)
-{
-    notifier.mode = Tcl_SetServiceMode(TCL_SERVICE_ALL);
-}
-
-static void restore_service_mode(void)
-{
-    Tcl_SetServiceMode(notifier.mode);
-}
-
 /*
  *----------------------------------------------------------------------
  *
@@ -286,6 +276,16 @@ FileProc(void* clientData, int mask)
     Tcl_ServiceAll();
 }
 
+static ClientData InitNotifier(void)
+{
+    Tcl_SetServiceMode(TCL_SERVICE_ALL);
+    return NULL;
+}
+
+static void ServiceModeHook(int mode)
+{
+}
+
 /*
  *----------------------------------------------------------------------
  *
@@ -446,8 +446,6 @@ static struct PyMethodDef methods[] = {
 static void freeevents_tkinter(void* module)
 {
     Tcl_NotifierProcs np;
-    PyEvents_RemoveObserver(0, set_service_mode);
-    PyEvents_RemoveObserver(1, restore_service_mode);
     memset(&np, 0, sizeof(np));
     Tcl_SetNotifier(&np);
 }
@@ -490,14 +488,14 @@ void initevents_tkinter(void)
         return;
 #endif
     memset(&np, 0, sizeof(np));
+    np.initNotifierProc = InitNotifier;
+    np.serviceModeHookProc = ServiceModeHook;
     np.createFileHandlerProc = CreateFileHandler;
     np.deleteFileHandlerProc = DeleteFileHandler;
     np.setTimerProc = SetTimer;
     np.waitForEventProc = WaitForEvent;
     Tcl_SetNotifier(&np);
     Tcl_CreateExitHandler(NotifierExitHandler, NULL);
-    PyEvents_AddObserver(0, set_service_mode);
-    PyEvents_AddObserver(1, restore_service_mode);
 #if PY3K
     return module;
 #endif

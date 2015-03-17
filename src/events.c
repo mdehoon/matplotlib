@@ -21,8 +21,6 @@
 
 static struct NotifierState {
     XtAppContext appContext;    /* The context used by the Xt notifier. */
-    Observer* observers[2];
-    int nobservers[2];
 } notifier;
 
 typedef struct {
@@ -93,32 +91,6 @@ PyEvents_RemoveTimer(PyObject* argument)
             object->timer = 0;
         }
     }
-}
-
-static void
-PyEvents_AddObserver(int activity, Observer observer)
-{
-    int n;
-    if (activity < 0 || activity > 1) return;
-    n = notifier.nobservers[activity];
-    notifier.observers[activity] = realloc(notifier.observers[activity], n+1);
-    notifier.observers[activity][n] = observer;
-    notifier.nobservers[activity] = n+1;
-}
-
-static void
-PyEvents_RemoveObserver(int activity, Observer observer)
-{
-    int n;
-    int i;
-    if (activity < 0 || activity > 1) return;
-    n = notifier.nobservers[activity];
-    for (i = 0; i < n; i++)
-        if (notifier.observers[activity][i] == observer)
-            break;
-    for ( ; i < n-1; i++)
-        notifier.observers[activity][i] = notifier.observers[activity][i+1];
-    notifier.nobservers[activity] = n-1;
 }
 
 typedef struct {
@@ -221,6 +193,26 @@ PyEvents_ProcessEvent(void)
     XtAppProcessEvent(notifier.appContext, XtIMAll);
 }
 
+static void
+TimeOutProc(XtPointer clientData, XtIntervalId *id)
+{
+    int* flag = clientData;
+    *flag = 1;
+}
+
+static int
+PyEvents_WaitForEvent(int milliseconds)
+{
+    XtIntervalId timer;
+    int flag = 0;
+    if (milliseconds==0 && XtAppPending(notifier.appContext)==0) return 0;
+    timer = XtAppAddTimeOut(notifier.appContext, milliseconds, TimeOutProc, &flag);
+    XtAppProcessEvent(notifier.appContext, XtIMAll);
+    if (flag) return 0;
+    XtRemoveTimeOut(timer);
+    return 1;
+}
+
 static void stdin_callback(XtPointer client_data, int* source, XtInputId* id)
 {
     int* input_available = client_data;
@@ -244,16 +236,10 @@ extern void run(void);
 
 static int wait_for_stdin(void)
 {
-    int i;
     int interrupted = 0;
     int input_available = 0;
     int fd = fileno(stdin);
-    XtAppContext context;
-    context =  notifier.appContext;
-    for (i = 0; i < notifier.nobservers[0]; i++) {
-        Observer* observer = notifier.observers[i];
-        (*observer)();
-    }
+    XtAppContext context =  notifier.appContext;
     XtInputId input = XtAppAddInput(context,
                                     fd,
                                     (XtPointer)XtInputReadMask,
@@ -266,10 +252,6 @@ static int wait_for_stdin(void)
     }
     PyOS_setsig(SIGINT, py_sigint_catcher);
     XtRemoveSignal(sigint_handler_id);
-    for (i = 0; i < notifier.nobservers[1]; i++) {
-        Observer* observer = notifier.observers[i];
-        (*observer)();
-    }
     XtRemoveInput(input);
     if (interrupted) {
         errno = EINTR;
@@ -375,16 +357,10 @@ void initevents(void)
     PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
     PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
     PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
-    PyEvents_API[PyEvents_AddObserver_NUM] = (void *)PyEvents_AddObserver;
-    PyEvents_API[PyEvents_RemoveObserver_NUM] = (void *)PyEvents_RemoveObserver;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
     XtToolkitInitialize();
-    notifier.observers[0] = NULL;
-    notifier.observers[1] = NULL;
-    notifier.nobservers[0] = 0;
-    notifier.nobservers[1] = 0;
     notifier.appContext = XtCreateApplicationContext();
     PyOS_InputHook = wait_for_stdin;
 #if PY3K

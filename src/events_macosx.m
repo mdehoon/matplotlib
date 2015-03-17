@@ -24,12 +24,6 @@
 - (void)launch:(NSNotification*)notification;
 @end
 
-static struct NotifierState {
-//    XtAppContext appContext;    /* The context used by the Xt notifier. */
-    Observer* observers[2];
-    int nobservers[2];
-} notifier;
-
 typedef struct {
     PyObject_HEAD
     CFRunLoopTimerRef timer;
@@ -122,32 +116,6 @@ PyEvents_RemoveTimer(PyObject* argument)
             object->timer = NULL;
         }
     }
-}
-
-static void
-PyEvents_AddObserver(int activity, Observer observer)
-{
-    int n;
-    if (activity < 0 || activity > 1) return;
-    n = notifier.nobservers[activity];
-    notifier.observers[activity] = realloc(notifier.observers[activity], n+1);
-    notifier.observers[activity][n] = observer;
-    notifier.nobservers[activity] = n+1;
-}
-
-static void
-PyEvents_RemoveObserver(int activity, Observer observer)
-{
-    int n;
-    int i;
-    if (activity < 0 || activity > 1) return;
-    n = notifier.nobservers[activity];
-    for (i = 0; i < n; i++)
-        if (notifier.observers[activity][i] == observer)
-            break;
-    for ( ; i < n-1; i++)
-        notifier.observers[activity][i] = notifier.observers[activity][i+1];
-    notifier.nobservers[activity] = n-1;
 }
 
 typedef struct {
@@ -339,7 +307,6 @@ static CGEventRef _eventtap_callback(CGEventTapProxy proxy, CGEventType type, CG
 
 static int wait_for_stdin(void)
 {
-    int i;
     int interrupted = 0;
     const UInt8 buffer[] = "/dev/fd/0";
     const CFIndex n = (CFIndex)strlen((char*)buffer);
@@ -363,10 +330,6 @@ static int wait_for_stdin(void)
         CFSocketRef sigint_socket = NULL;
         PyOS_sighandler_t py_sigint_handler = NULL;
         CFStreamClientContext clientContext = {0, NULL, NULL, NULL, NULL};
-        for (i = 0; i < notifier.nobservers[0]; i++) {
-            Observer* observer = notifier.observers[i];
-            (*observer)();
-        }
         clientContext.info = runloop;
         CFReadStreamSetClient(stream,
                               kCFStreamEventHasBytesAvailable,
@@ -429,10 +392,6 @@ static int wait_for_stdin(void)
         if (error==0) {
             close(channel[0]);
             close(channel[1]);
-        }
-        for (i = 0; i < notifier.nobservers[1]; i++) {
-            Observer* observer = notifier.observers[i];
-            (*observer)();
         }
 #ifdef PYOSINPUTHOOK_REPETITIVE
     }
@@ -547,7 +506,6 @@ void initevents(void)
     PyObject *module;
     static void *PyEvents_API[PyEvents_API_pointers];
     PyObject* c_api_object;
-
     if (PyType_Ready(&TimerType) < 0)
         goto error;
     if (PyType_Ready(&SocketType) < 0)
@@ -578,15 +536,9 @@ void initevents(void)
     PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
     PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
     PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
-    PyEvents_API[PyEvents_AddObserver_NUM] = (void *)PyEvents_AddObserver;
-    PyEvents_API[PyEvents_RemoveObserver_NUM] = (void *)PyEvents_RemoveObserver;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
-    notifier.observers[0] = NULL;
-    notifier.observers[1] = NULL;
-    notifier.nobservers[0] = 0;
-    notifier.nobservers[1] = 0;
     PyOS_InputHook = wait_for_stdin;
 #if PY3K
     return module;

@@ -3,8 +3,6 @@
 
 /* Header file for events */
 
-typedef void (*Observer)(void);
-
 #define PyEvents_READABLE 2
 #define PyEvents_WRITABLE 4
 #define PyEvents_EXCEPTION 8
@@ -31,15 +29,9 @@ typedef void (*Observer)(void);
 #define PyEvents_DeleteSocket_NUM 6
 #define PyEvents_DeleteSocket_RETURN void
 #define PyEvents_DeleteSocket_PROTO (PyObject* socket)
-#define PyEvents_AddObserver_NUM 7
-#define PyEvents_AddObserver_RETURN void
-#define PyEvents_AddObserver_PROTO (int activity, Observer observer)
-#define PyEvents_RemoveObserver_NUM 8
-#define PyEvents_RemoveObserver_RETURN void
-#define PyEvents_RemoveObserver_PROTO (int activity, Observer observer)
 
 /* Total number of C API pointers */
-#define PyEvents_API_pointers 9
+#define PyEvents_API_pointers 7
 
 
 #ifdef EVENTS_MODULE
@@ -52,8 +44,6 @@ static PyEvents_HavePendingEvents_RETURN PyEvents_HavePendingEvents PyEvents_Hav
 static PyEvents_WaitForEvent_RETURN PyEvents_WaitForEvent PyEvents_WaitForEvent_PROTO;
 static PyEvents_CreateSocket_RETURN PyEvents_CreateSocket PyEvents_CreateSocket_PROTO;
 static PyEvents_DeleteSocket_RETURN PyEvents_DeleteSocket PyEvents_DeleteSocket_PROTO;
-static PyEvents_AddObserver_RETURN PyEvents_AddObserver PyEvents_AddObserver_PROTO;
-static PyEvents_RemoveObserver_RETURN PyEvents_RemoveObserver PyEvents_RemoveObserver_PROTO;
 
 #else
 /* This section is used in modules that use the API */
@@ -74,10 +64,6 @@ static void **PyEvents_API;
  (*(PyEvents_CreateSocket_RETURN (*)PyEvents_CreateSocket_PROTO) PyEvents_API[PyEvents_CreateSocket_NUM])
 #define PyEvents_DeleteSocket \
  (*(PyEvents_DeleteSocket_RETURN (*)PyEvents_DeleteSocket_PROTO) PyEvents_API[PyEvents_DeleteSocket_NUM])
-#define PyEvents_AddObserver \
- (*(PyEvents_AddObserver_RETURN (*)PyEvents_AddObserver_PROTO) PyEvents_API[PyEvents_AddObserver_NUM])
-#define PyEvents_RemoveObserver \
- (*(PyEvents_RemoveObserver_RETURN (*)PyEvents_RemoveObserver_PROTO) PyEvents_API[PyEvents_RemoveObserver_NUM])
 
 /* Return -1 on error, 0 on success.
  * PyCapsule_Import will set an exception if there's an error.
