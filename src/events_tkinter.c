@@ -91,20 +91,6 @@ NotifierExitHandler(
 static int
 WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
 {
-/*
-    if (timePtr) {
-        int timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-        if (timeout == 0) {
-            if (!PyEvents_HavePendingEvents()) {
-                return 0;
-            }
-        } else {
-            Tcl_SetTimer(timePtr);
-        }
-    }
-    PyEvents_ProcessEvent();
-    return 1;
-*/
     int milliseconds = INT_MAX;
     if (timePtr) {
         milliseconds = timePtr->sec * 1000 + timePtr->usec / 1000;
