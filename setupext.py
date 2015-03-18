@@ -1907,6 +1907,22 @@ class Events(OptionalBackendPackage):
             'src/events.c',
             ]
         ext = make_extension('events', sources)
+        return ext
+
+class Events_xt(OptionalBackendPackage):
+    name = "events_xt"
+    def check_requirements(self):
+        if platform.system() in ('Windows', 'Darwin'):
+            raise CheckFailed("Linux/Unix only")
+        raise CheckFailed("Deprecated")
+
+        return 'Linux/Unix'
+
+    def get_extension(self):
+        sources = [
+            'src/events_xt.c',
+            ]
+        ext = make_extension('events', sources)
         ext.extra_link_args.extend(['-lX11'])
         ext.extra_link_args.extend(['-lXt'])
         ext.extra_link_args.extend(['-lXaw'])
