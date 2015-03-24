@@ -250,25 +250,6 @@ PyEvents_HavePendingEvents(void)
 }
 
 static void
-PyEvents_ProcessEvent(void)
-{
-    NSEvent* event;
-    NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
-    event = [NSApp nextEventMatchingMask: NSAnyEventMask
-                               untilDate: [NSDate distantPast]
-                                  inMode: NSDefaultRunLoopMode
-                                 dequeue: YES];
-    if (event) {
-        [NSApp sendEvent: event];
-        return;
-    }
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode,
-                       kCFAbsoluteTimeIntervalSince1904,
-                       true);
-    [pool release];
-}
-
-static void
 _stdin_callback(CFReadStreamRef stream, CFStreamEventType eventType, void* info)
 {
     CFRunLoopRef runloop = info;
@@ -531,7 +512,6 @@ void initevents(void)
 
     PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
-    PyEvents_API[PyEvents_ProcessEvent_NUM] = (void *)PyEvents_ProcessEvent;
     PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
     PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
     PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;

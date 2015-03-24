@@ -283,11 +283,6 @@ PyEvents_HavePendingEvents(void)
     return 1;
 }
 
-static void
-PyEvents_ProcessEvent(void)
-{
-}
-
 static int
 set_fds(fd_set* readfds, fd_set* writefds, fd_set* errorfds)
 {
@@ -437,7 +432,6 @@ void initevents(void)
     if (module==NULL) goto error;
     PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
-    PyEvents_API[PyEvents_ProcessEvent_NUM] = (void *)PyEvents_ProcessEvent;
     PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
     PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
     PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
