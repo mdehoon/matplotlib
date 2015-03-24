@@ -1,10 +1,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <X11/Intrinsic.h>
-#include <X11/Shell.h>
-#include <X11/StringDefs.h>
-#include <X11/Xaw/Command.h>
 #include <Python.h>
 #define EVENTS_MODULE
 #include "events.h"
@@ -19,15 +15,21 @@
 #endif
 #endif
 
-static struct NotifierState {
-    XtAppContext appContext;    /* The context used by the Xt notifier. */
-} notifier;
+typedef struct TimerObject TimerObject;
 
-typedef struct {
+typedef struct SocketObject SocketObject;
+
+struct TimerObject {
     PyObject_HEAD
-    XtIntervalId timer;
+    unsigned long time;
     void(*callback)(PyObject*);
-} TimerObject;
+    TimerObject* next;
+};
+
+static struct NotifierState {
+    TimerObject* firstTimer;
+    SocketObject* firstSocket;
+} notifier;
 
 static PyTypeObject TimerType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -53,63 +55,136 @@ static PyTypeObject TimerType = {
     "Timer object",            /*tp_doc */
 };
 
-static void
-TimerProc(XtPointer clientData, XtIntervalId *id)
+static void add_timer(TimerObject* timer)
 {
-    void(*callback)(PyObject*);
-    TimerObject* object = (TimerObject*)clientData;
-    if (object->timer != *id) {
-        /* this is not supposed to happen */
-        return;
+    TimerObject* current;
+    TimerObject* next;
+    if (notifier.firstTimer==NULL) notifier.firstTimer = timer;
+    else {
+        current = notifier.firstTimer;
+        while (1) {
+            next = current->next;
+            if (!next) break;
+            current = next;
+        }
+        current->next = timer;
     }
-    object->timer = 0;
-    callback = object->callback;
-    callback((PyObject*)object);
+    Py_INCREF(timer);
+}
+
+static void
+remove_timer(TimerObject* timer)
+{
+    TimerObject* previous;
+    TimerObject* current;
+    previous = NULL;
+    current = notifier.firstTimer;
+    while (1) {
+        if (current==NULL) break;
+        if (current==timer) {
+            current = current->next;
+            if (previous) previous->next = current;
+            else notifier.firstTimer = current;
+            Py_DECREF(timer);
+            break;
+        }
+        previous = current;
+        current = current->next;
+    }
+}
+
+static unsigned long
+check_timers(void)
+{
+    struct timeval tp;
+    unsigned long now;
+    unsigned long timeout = ULONG_MAX;
+    long difference;
+    TimerObject* timer = notifier.firstTimer;
+    if (timer) {
+        if (gettimeofday(&tp, NULL)==-1) {
+            PyErr_Format(PyExc_RuntimeError, "gettimeofday failed unexpectedly");
+            return 0;
+        }
+        now = 1000 * tp.tv_sec + tp.tv_usec / 1000 + timeout;
+        do {
+            difference = timer->time - now;
+            if (difference <= 0) return 0;
+            if (difference < timeout) timeout = difference;
+            timer = timer->next;
+        } while (timer);
+    }
+    return timeout;
+}
+
+static unsigned long
+process_timers(void)
+{
+    struct timeval tp;
+    unsigned long now;
+    unsigned long timeout = ULONG_MAX;
+    long difference;
+    void(*callback)(PyObject*);
+    TimerObject* next;
+    TimerObject* timer = notifier.firstTimer;
+    if (timer) {
+        if (gettimeofday(&tp, NULL)==-1) {
+            PyErr_Format(PyExc_RuntimeError, "gettimeofday failed unexpectedly");
+            return 0;
+        }
+        now = 1000 * tp.tv_sec + tp.tv_usec / 1000;
+        do {
+            difference = timer->time - now;
+            if (difference <= 0) {
+                callback = timer->callback;
+                callback((PyObject*)timer);
+                next = timer->next;
+                remove_timer(timer);
+                timer = next;
+            }
+            else {
+                if (difference < timeout) timeout = difference;
+                timer = timer->next;
+            }
+        } while (timer);
+    }
+    return timeout;
 }
 
 static PyObject*
 PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
 {
-    TimerObject* object;
-    XtIntervalId timer;
-    object = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
-    timer = XtAppAddTimeOut(notifier.appContext, timeout, TimerProc, object);
-    object->timer = timer;
-    object->callback = callback;
-    return (PyObject*)object;
+    TimerObject* timer;
+    struct timeval tp;
+    if (gettimeofday(&tp, NULL)==-1) {
+        PyErr_Format(PyExc_RuntimeError, "gettimeofday failed unexpectedly");
+        return NULL;
+    }
+    timer = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
+    timer->time = 1000 * tp.tv_sec + tp.tv_usec / 1000 + timeout;
+    timer->callback = callback;
+    add_timer(timer);
+    return (PyObject*)timer;
 }
 
 static void
 PyEvents_RemoveTimer(PyObject* argument)
 {
-    if (argument && PyObject_TypeCheck(argument, &TimerType))
-    {
-        TimerObject* object = (TimerObject*)argument;
-        XtIntervalId timer = object->timer;
-        if (timer) {
-            XtRemoveTimeOut(timer);
-            object->timer = 0;
-        }
-    }
+    TimerObject* timer;
+    if (!argument) return;
+    if (!PyObject_TypeCheck(argument, &TimerType)) return;
+    timer = (TimerObject*)argument;
+    remove_timer(timer);
 }
 
-typedef struct {
+struct SocketObject {
     PyObject_HEAD
-    XtInputId input;
     void(*proc)(void* info, int mask);
+    int fd;
     void* info;
     int mask;
-} SocketObject;
-
-static void
-FileProc(XtPointer clientData, int *fd, XtInputId *id)
-{
-    SocketObject* object = (SocketObject*)clientData;
-    void(*proc)(void* info, int mask) = object->proc;
-    void* info = object->info;
-    int mask = object->mask;
-    return proc(info, mask);
-}
+    SocketObject* next;
+};
 
 static PyTypeObject SocketType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -135,6 +210,43 @@ static PyTypeObject SocketType = {
     "Socket object",           /*tp_doc */
 };
 
+static void add_socket(SocketObject* socket)
+{
+    SocketObject* current;
+    SocketObject* next;
+    if (notifier.firstSocket==NULL) notifier.firstSocket = socket;
+    else {
+        current = notifier.firstSocket;
+        while (1) {
+            next = current->next;
+            if (!next) break;
+            current = next;
+        }
+        current->next = socket;
+    }
+    Py_INCREF(socket);
+}
+
+static void remove_socket(SocketObject* socket)
+{
+    SocketObject* previous;
+    SocketObject* current;
+    previous = NULL;
+    current = notifier.firstSocket;
+    while (1) {
+        if (current==NULL) break;
+        if (current==socket) {
+            current = current->next;
+            if (previous) previous->next = current;
+            else notifier.firstSocket = current;
+            Py_DECREF(socket);
+            break;
+        }
+        previous = current;
+        current = current->next;
+    }
+}
+
 static PyObject*
 PyEvents_CreateSocket(
     int fd,			/* Handle of stream to watch. */
@@ -145,171 +257,144 @@ PyEvents_CreateSocket(
     void(*proc)(void* info, int mask),
     void* argument)		/* Arbitrary data to pass to proc. */
 {
-    XtInputId input;
-    XtPointer condition;
-    SocketObject* object;
-    switch (mask) {
-        case PyEvents_READABLE:
-            condition = (XtPointer)XtInputReadMask; break;
-        case PyEvents_WRITABLE:
-            condition = (XtPointer)XtInputWriteMask; break;
-        case PyEvents_EXCEPTION:
-            condition = (XtPointer)XtInputExceptMask; break;
-        default: return 0;
-    }
-    object = (SocketObject*)PyType_GenericNew(&SocketType, NULL, NULL);
-    input = XtAppAddInput(notifier.appContext, fd, condition, FileProc, (XtPointer)object);
-    object->proc = proc;
-    object->info = argument;
-    object->mask = mask;
-    object->input = input;
-    return (PyObject*)object;
+    SocketObject* socket;
+    socket = (SocketObject*)PyType_GenericNew(&SocketType, NULL, NULL);
+    socket->proc = proc;
+    socket->fd = fd;
+    socket->info = argument;
+    socket->mask = mask;
+    add_socket(socket);
+    return (PyObject*)socket;
 }
 
 static void
 PyEvents_DeleteSocket(PyObject* argument)
 {
-    if (argument && PyObject_TypeCheck(argument, &SocketType))
-    {
-        SocketObject* object = (SocketObject*)argument;
-        XtInputId input = object->input;
-        if (input) {
-            XtRemoveInput(input);
-            object->input = 0;
-        }
-    }
+    SocketObject* socket;
+    if (!argument) return;
+    if (!PyObject_TypeCheck(argument, &SocketType)) return;
+    socket = (SocketObject*)argument;
+    remove_socket(socket);
 }
 
 static int
 PyEvents_HavePendingEvents(void)
 {
-    if (XtAppPending(notifier.appContext)==0) return 0;
     return 1;
 }
 
 static void
 PyEvents_ProcessEvent(void)
 {
-    XtAppProcessEvent(notifier.appContext, XtIMAll);
 }
 
-static void
-TimeOutProc(XtPointer clientData, XtIntervalId *id)
+static int
+set_fds(fd_set* readfds, fd_set* writefds, fd_set* errorfds)
 {
-    int* flag = clientData;
-    *flag = 1;
+    int mask;
+    int fd;
+    int nfds = 0;
+    SocketObject* socket;
+    FD_ZERO(readfds);
+    FD_ZERO(writefds);
+    FD_ZERO(errorfds);
+    socket = notifier.firstSocket;
+    while (socket)
+    {
+        fd = socket->fd;
+        mask = socket->mask;
+        switch (mask) {
+            case PyEvents_READABLE: FD_SET(fd, readfds); break;
+            case PyEvents_WRITABLE: FD_SET(fd, writefds); break;
+            case PyEvents_EXCEPTION: FD_SET(fd, errorfds); break;
+        }
+        if (fd > nfds) nfds = fd;
+        socket = socket->next;
+    }
+    nfds++;
+    return nfds;
 }
 
 static int
 PyEvents_WaitForEvent(int milliseconds)
 {
-    XtIntervalId timer;
-    int flag = 0;
-    if (milliseconds==0 && XtAppPending(notifier.appContext)==0) return 0;
-    timer = XtAppAddTimeOut(notifier.appContext, milliseconds, TimeOutProc, &flag);
-    XtAppProcessEvent(notifier.appContext, XtIMAll);
-    if (flag) return 0;
-    XtRemoveTimeOut(timer);
-    return 1;
+    int nfds;
+    fd_set readfds;
+    fd_set writefds;
+    fd_set errorfds;
+    struct timeval timeout;
+    unsigned long waittime;
+    waittime = check_timers();
+    if (waittime == 0) return 0;
+    if (waittime < milliseconds) milliseconds = waittime;
+    timeout.tv_sec = milliseconds / 1000;
+    timeout.tv_usec = 1000 * (milliseconds % 1000);
+    nfds = set_fds(&readfds, &writefds, &errorfds);
+    if (select(nfds, &readfds, &writefds, &errorfds, &timeout)==-1)
+        /* handle error */ ;
+    return 0;
 }
-
-static void stdin_callback(XtPointer client_data, int* source, XtInputId* id)
-{
-    int* input_available = client_data;
-    *input_available = 1;
-}
-
-static XtSignalId sigint_handler_id;
-
-static void sigint_handler(XtPointer client_data, XtSignalId* id)
-{
-    int* interrupted = client_data;
-    *interrupted = 1;
-}
-
-static void sigint_catcher(int signo)
-{
-    XtNoticeSignal(sigint_handler_id);
-}
-
-extern void run(void);
 
 static int wait_for_stdin(void)
 {
-    int interrupted = 0;
-    int input_available = 0;
-    int fd = fileno(stdin);
-    XtAppContext context =  notifier.appContext;
-    XtInputId input = XtAppAddInput(context,
-                                    fd,
-                                    (XtPointer)XtInputReadMask,
-                                    stdin_callback,
-                                    &input_available);
-    sig_t py_sigint_catcher = PyOS_setsig(SIGINT, sigint_catcher);
-    sigint_handler_id = XtAppAddSignal(context, sigint_handler, &interrupted);
-    while (!input_available && !interrupted) {
-        XtAppProcessEvent(context, XtIMAll);
-    }
-    PyOS_setsig(SIGINT, py_sigint_catcher);
-    XtRemoveSignal(sigint_handler_id);
-    XtRemoveInput(input);
-    if (interrupted) {
-        errno = EINTR;
-        raise(SIGINT);
-        return -1;
+    int fd;
+    int mask;
+    int fd_stdin = fileno(stdin);
+    int ready;
+    int nfds;
+    long int waittime;
+    fd_set readfds;
+    fd_set writefds;
+    fd_set errorfds;
+    struct timeval timeout;
+    struct timeval* ptimeout;
+    SocketObject* socket;
+    while (1) {
+        nfds = set_fds(&readfds, &writefds, &errorfds);
+        FD_SET(fd_stdin, &readfds);
+        if (fd_stdin >= nfds) nfds = fd_stdin + 1;
+        waittime = process_timers();
+        if (waittime == ULONG_MAX) ptimeout = NULL;
+        else {
+            timeout.tv_sec = waittime / 1000;
+            timeout.tv_usec = 1000 * (waittime % 1000);
+            ptimeout = &timeout;
+        }
+        if (select(nfds, &readfds, &writefds, &errorfds, ptimeout)==-1)
+        {
+            if (errno==EINTR) raise(SIGINT);
+            return -1;
+        }
+        if (FD_ISSET(fd_stdin, &readfds)) break;
+        socket = notifier.firstSocket;
+        while (socket)
+        {
+            ready = 0;
+            fd = socket->fd;
+            mask = socket->mask;
+            switch (mask) {
+                case PyEvents_READABLE: ready = FD_ISSET(fd, &readfds); break;
+                case PyEvents_WRITABLE: ready = FD_ISSET(fd, &writefds); break;
+                case PyEvents_EXCEPTION: ready = FD_ISSET(fd, &errorfds); break;
+            }
+            if (ready) {
+                void(*proc)(void* info, int mask) = socket->proc;
+                void* info = socket->info;
+                proc(info, mask);
+            }
+            socket = socket->next;
+        }
     }
     return 1;
 }
 
-static void Action (Widget w, XtPointer client_data, XtPointer call_data) {
-  fprintf (stderr, "You pressed me.\n");
-}
-
-static PyObject*
-test(PyObject* self)
-{
-    Widget win, button;
-    int argc = 0;
-    Display* d = XtOpenDisplay(notifier.appContext,
-                               NULL,
-                               NULL,
-                               "Python events module / Xt",
-                               NULL,
-                               0,
-                               &argc,
-                               NULL);
-    win = XtAppCreateShell(NULL,
-                           NULL,
-                           applicationShellWidgetClass,
-                           d,
-                           NULL,
-                           0);
-    button = XtVaCreateWidget (
-                "XtButton",
-                commandWidgetClass,
-                win,
-                NULL);
-    XtManageChild(button);
-    XtAddCallback(button, XtNcallback, Action, 0);
-    XtRealizeWidget(win);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
 static struct PyMethodDef methods[] = {
-   {"test",
-    (PyCFunction)test,
-    METH_NOARGS,
-    "open a test window."
-   },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
 #if PY3K
 static void freeevents(void* module)
 {
-    XtDestroyApplicationContext(notifier.appContext);
-    notifier.appContext = NULL;
     PyOS_InputHook = NULL;
 }
 
@@ -360,8 +445,8 @@ void initevents(void)
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
-    XtToolkitInitialize();
-    notifier.appContext = XtCreateApplicationContext();
+    notifier.firstTimer = NULL;
+    notifier.firstSocket = NULL;
     PyOS_InputHook = wait_for_stdin;
 #if PY3K
     return module;

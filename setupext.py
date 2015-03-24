@@ -1897,10 +1897,10 @@ class Events_tkinter(OptionalBackendPackage):
 class Events(OptionalBackendPackage):
     name = "events"
     def check_requirements(self):
+        return 'Linux/Unix'
         if platform.system() in ('Windows', 'Darwin'):
             raise CheckFailed("Linux/Unix only")
 
-        return 'Linux/Unix'
 
     def get_extension(self):
         sources = [
@@ -1931,7 +1931,7 @@ class Events_xt(OptionalBackendPackage):
 class Events_macosx(OptionalBackendPackage):
     name = "events_macosx"
     def check_requirements(self):
-        if platform.system() != 'Darwin':
+        if platform.system() == 'Darwin':
             raise CheckFailed("Mac OS-X only")
 
         return 'darwin'
