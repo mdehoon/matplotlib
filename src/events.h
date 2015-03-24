@@ -14,21 +14,18 @@
 #define PyEvents_RemoveTimer_NUM 1
 #define PyEvents_RemoveTimer_RETURN void
 #define PyEvents_RemoveTimer_PROTO (PyObject* timer)
-#define PyEvents_HavePendingEvents_NUM 2
-#define PyEvents_HavePendingEvents_RETURN int
-#define PyEvents_HavePendingEvents_PROTO (void)
-#define PyEvents_WaitForEvent_NUM 3
+#define PyEvents_WaitForEvent_NUM 2
 #define PyEvents_WaitForEvent_RETURN int
 #define PyEvents_WaitForEvent_PROTO (int)
-#define PyEvents_CreateSocket_NUM 4
+#define PyEvents_CreateSocket_NUM 3
 #define PyEvents_CreateSocket_RETURN PyObject*
 #define PyEvents_CreateSocket_PROTO (int fd, int mask, void(*proc)(void* info, int mask), void* argument)
-#define PyEvents_DeleteSocket_NUM 5
+#define PyEvents_DeleteSocket_NUM 4
 #define PyEvents_DeleteSocket_RETURN void
 #define PyEvents_DeleteSocket_PROTO (PyObject* socket)
 
 /* Total number of C API pointers */
-#define PyEvents_API_pointers 6
+#define PyEvents_API_pointers 5
 
 
 #ifdef EVENTS_MODULE
@@ -36,7 +33,6 @@
 
 static PyEvents_AddTimer_RETURN PyEvents_AddTimer PyEvents_AddTimer_PROTO;
 static PyEvents_RemoveTimer_RETURN PyEvents_RemoveTimer PyEvents_RemoveTimer_PROTO;
-static PyEvents_HavePendingEvents_RETURN PyEvents_HavePendingEvents PyEvents_HavePendingEvents_PROTO;
 static PyEvents_WaitForEvent_RETURN PyEvents_WaitForEvent PyEvents_WaitForEvent_PROTO;
 static PyEvents_CreateSocket_RETURN PyEvents_CreateSocket PyEvents_CreateSocket_PROTO;
 static PyEvents_DeleteSocket_RETURN PyEvents_DeleteSocket PyEvents_DeleteSocket_PROTO;
@@ -50,8 +46,6 @@ static void **PyEvents_API;
  (*(PyEvents_AddTimer_RETURN (*)PyEvents_AddTimer_PROTO) PyEvents_API[PyEvents_AddTimer_NUM])
 #define PyEvents_RemoveTimer \
  (*(PyEvents_RemoveTimer_RETURN (*)PyEvents_RemoveTimer_PROTO) PyEvents_API[PyEvents_RemoveTimer_NUM])
-#define PyEvents_HavePendingEvents \
- (*(PyEvents_HavePendingEvents_RETURN (*)PyEvents_HavePendingEvents_PROTO) PyEvents_API[PyEvents_HavePendingEvents_NUM])
 #define PyEvents_WaitForEvent \
  (*(PyEvents_WaitForEvent_RETURN (*)PyEvents_WaitForEvent_PROTO) PyEvents_API[PyEvents_WaitForEvent_NUM])
 #define PyEvents_CreateSocket \

@@ -278,12 +278,6 @@ PyEvents_DeleteSocket(PyObject* argument)
 }
 
 static int
-PyEvents_HavePendingEvents(void)
-{
-    return 1;
-}
-
-static int
 set_fds(fd_set* readfds, fd_set* writefds, fd_set* errorfds)
 {
     int mask;
@@ -432,7 +426,6 @@ void initevents(void)
     if (module==NULL) goto error;
     PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
     PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
-    PyEvents_API[PyEvents_HavePendingEvents_NUM] = (void *)PyEvents_HavePendingEvents;
     PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
     PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
     PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
