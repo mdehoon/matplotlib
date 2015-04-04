@@ -8,6 +8,7 @@
 #define PY3K 0
 #endif
 
+
 /*
  * This structure is used to keep track of the notifier info for a a
  * registered file.
@@ -55,13 +56,31 @@ static struct NotifierState {
     int mode;                   /* Tcl's service mode */
 } notifier;
 
+static PyObject *module = NULL;
+
 static void
 NotifierExitHandler(
     ClientData clientData)      /* Not used. */
 {
-    if (notifier.currentTimeout != 0) {
-        PyEvents_RemoveTimer(notifier.currentTimeout);
+    PyObject* function;
+    PyObject* result;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyGILState_STATE gstate;
+    if (notifier.currentTimeout != NULL) {
+        gstate = PyGILState_Ensure();
+        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+        function = PyObject_GetAttrString(module, "remove_timer");
+        if (function) {
+            result = PyObject_CallFunction(function, "O", notifier.currentTimeout);
+            if(result)Py_DECREF(result);
+            else PyErr_Print();
+        }
+        PyErr_Restore(exception_type, exception_value, exception_traceback);
+        PyGILState_Release(gstate);
         Py_DECREF(notifier.currentTimeout);
+        notifier.currentTimeout = NULL;
     }
     for (; notifier.firstFileHandlerPtr != NULL; ) {
         Tcl_DeleteFileHandler(notifier.firstFileHandlerPtr->fd);
@@ -98,16 +117,28 @@ WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
     return PyEvents_WaitForEvent(milliseconds);
 }
 
-static void TimerProc(PyObject* timer)
+static PyObject *TimerProc(PyObject *unused, PyObject *timer)
 {
     if (timer != notifier.currentTimeout) {
         /* this is not supposed to happen */
-        return;
+        PyErr_SetString(PyExc_RuntimeError, "timer mismatch in callback");
+        return NULL;
     }
     Py_DECREF(notifier.currentTimeout);
     notifier.currentTimeout = NULL;
     Tcl_ServiceAll();
+    Py_INCREF(Py_None);
+    return Py_None;
 }
+
+static struct PyMethodDef timer_callback_descr = {
+  "timer_proc",
+  (PyCFunction)TimerProc,
+  METH_O,
+  NULL
+};
+
+static PyObject *timer_callback;
 
 /*
  *----------------------------------------------------------------------
@@ -130,13 +161,38 @@ SetTimer(
     const Tcl_Time *timePtr)            /* Timeout value, may be NULL. */
 {
     unsigned long timeout;
-    if (notifier.currentTimeout != 0) {
-        PyEvents_RemoveTimer(notifier.currentTimeout);
+    PyObject* function;
+    PyObject* result = NULL;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyGILState_STATE gstate;
+    if (notifier.currentTimeout != NULL) {
+        gstate = PyGILState_Ensure();
+        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+        function = PyObject_GetAttrString(module, "remove_timer");
+        if (function) {
+            result = PyObject_CallFunction(function, "O", notifier.currentTimeout);
+            Py_DECREF(function);
+        }
+        if (result) Py_DECREF(result);
+        else PyErr_Print();
+        PyErr_Restore(exception_type, exception_value, exception_traceback);
+        PyGILState_Release(gstate);
         Py_DECREF(notifier.currentTimeout);
     }
     if (timePtr) {
         timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-        notifier.currentTimeout = PyEvents_AddTimer(timeout, TimerProc);
+        gstate = PyGILState_Ensure();
+        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+        function = PyObject_GetAttrString(module, "add_timer");
+        if (function) {
+            notifier.currentTimeout = PyEval_CallFunction(function, "kO", timeout, timer_callback);
+            Py_DECREF(function);
+        }
+        if (notifier.currentTimeout==NULL) PyErr_Print();
+        PyErr_Restore(exception_type, exception_value, exception_traceback);
+        PyGILState_Release(gstate);
     } else {
         notifier.currentTimeout = NULL;
     }
@@ -455,7 +511,6 @@ PyObject* PyInit_events_tkinter(void)
 void initevents_tkinter(void)
 #endif
 {
-    PyObject *module;
     Tcl_NotifierProcs np;
 #if PY3K
     module = PyModule_Create(&moduledef);
@@ -482,6 +537,7 @@ void initevents_tkinter(void)
     np.waitForEventProc = WaitForEvent;
     Tcl_SetNotifier(&np);
     Tcl_CreateExitHandler(NotifierExitHandler, NULL);
+    timer_callback = PyCFunction_New(&timer_callback_descr, NULL);
 #if PY3K
     return module;
 #endif

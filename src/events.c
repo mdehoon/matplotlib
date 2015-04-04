@@ -22,7 +22,7 @@ typedef struct SocketObject SocketObject;
 struct TimerObject {
     PyObject_HEAD
     unsigned long time;
-    void(*callback)(PyObject*);
+    PyObject* callback;
     TimerObject* next;
 };
 
@@ -85,6 +85,7 @@ remove_timer(TimerObject* timer)
             current = current->next;
             if (previous) previous->next = current;
             else notifier.firstTimer = current;
+            Py_DECREF(timer->callback);
             Py_DECREF(timer);
             break;
         }
@@ -124,20 +125,33 @@ process_timers(void)
     unsigned long now;
     unsigned long timeout = ULONG_MAX;
     long difference;
-    void(*callback)(PyObject*);
+    PyObject* arguments;
+    PyObject* result;
     TimerObject* next;
     TimerObject* timer = notifier.firstTimer;
+    PyGILState_STATE gstate;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
     if (timer) {
         if (gettimeofday(&tp, NULL)==-1) {
             PyErr_Format(PyExc_RuntimeError, "gettimeofday failed unexpectedly");
             return 0;
         }
         now = 1000 * tp.tv_sec + tp.tv_usec / 1000;
+        gstate = PyGILState_Ensure();
+        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
         do {
             difference = timer->time - now;
             if (difference <= 0) {
-                callback = timer->callback;
-                callback((PyObject*)timer);
+                result = NULL;
+                arguments = Py_BuildValue("(O)", timer);
+                if (arguments) {
+                    result = PyEval_CallObject(timer->callback, arguments);
+                    Py_DECREF(arguments);
+                }
+                if (result) Py_DECREF(result);
+                else PyErr_Print();
                 next = timer->next;
                 remove_timer(timer);
                 timer = next;
@@ -147,19 +161,29 @@ process_timers(void)
                 timer = timer->next;
             }
         } while (timer);
+        PyErr_Restore(exception_type, exception_value, exception_traceback);
+        PyGILState_Release(gstate);
     }
     return timeout;
 }
 
 static PyObject*
-PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
+PyEvents_AddTimer(PyObject* unused, PyObject* args)
 {
     TimerObject* timer;
     struct timeval tp;
-    if (gettimeofday(&tp, NULL)==-1) {
-        PyErr_Format(PyExc_RuntimeError, "gettimeofday failed unexpectedly");
+    unsigned long timeout;
+    PyObject* callback;
+    if (!PyArg_ParseTuple(args, "kO", &timeout, &callback)) return NULL;
+    if (!PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "Callback should be callable");
         return NULL;
     }
+    if (gettimeofday(&tp, NULL)==-1) {
+        PyErr_SetString(PyExc_RuntimeError, "gettimeofday failed unexpectedly");
+        return NULL;
+    }
+    Py_INCREF(callback);
     timer = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
     timer->time = 1000 * tp.tv_sec + tp.tv_usec / 1000 + timeout;
     timer->callback = callback;
@@ -167,14 +191,16 @@ PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
     return (PyObject*)timer;
 }
 
-static void
-PyEvents_RemoveTimer(PyObject* argument)
+static PyObject*
+PyEvents_RemoveTimer(PyObject* unused, PyObject* argument)
 {
     TimerObject* timer;
-    if (!argument) return;
-    if (!PyObject_TypeCheck(argument, &TimerType)) return;
+    if (!argument) return NULL;
+    if (!PyObject_TypeCheck(argument, &TimerType)) return NULL;
     timer = (TimerObject*)argument;
     remove_timer(timer);
+    Py_INCREF(Py_None);
+    return Py_None;
 }
 
 struct SocketObject {
@@ -378,6 +404,16 @@ static int wait_for_stdin(void)
 }
 
 static struct PyMethodDef methods[] = {
+    {"add_timer",
+     (PyCFunction)PyEvents_AddTimer,
+     METH_VARARGS,
+     "add a timer."
+    },
+    {"remove_timer",
+     (PyCFunction)PyEvents_RemoveTimer,
+     METH_O,
+     "remove the timer."
+    },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
@@ -424,8 +460,6 @@ void initevents(void)
                             PYTHON_API_VERSION);
 #endif
     if (module==NULL) goto error;
-    PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
-    PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
     PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
     PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
     PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
