@@ -288,10 +288,20 @@ FileHandlerEventProc(
  */
 
 static void
-FileProc(void* clientData, int mask)
+FileProc(int fd, int mask)
 {
-    FileHandler *filePtr = (FileHandler *)clientData;
+    FileHandler* filePtr;
     FileHandlerEvent *fileEvPtr;
+    for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
+            filePtr = filePtr->nextPtr) {
+        if (filePtr->fd == fd) {
+            break;
+        }
+    }
+    if (filePtr == NULL) {
+        /* This is not supposed to happen. */
+        return;
+    }
 
     /*
      * Ignore unwanted or duplicate events.
@@ -380,8 +390,7 @@ CreateFileHandler(
         if (!(filePtr->mask & TCL_READABLE)) {
             filePtr->read = PyEvents_CreateSocket(fd,
                                                   PyEvents_READABLE,
-                                                  FileProc,
-                                                  filePtr);
+                                                  FileProc);
         }
     } else {
         if (filePtr->mask & TCL_READABLE) {
@@ -393,8 +402,7 @@ CreateFileHandler(
         if (!(filePtr->mask & TCL_WRITABLE)) {
             filePtr->write = PyEvents_CreateSocket(fd,
                                                    PyEvents_WRITABLE,
-                                                   FileProc,
-                                                   filePtr);
+                                                   FileProc);
         }
     } else {
         if (filePtr->mask & TCL_WRITABLE) {
@@ -406,8 +414,7 @@ CreateFileHandler(
         if (!(filePtr->mask & TCL_EXCEPTION)) {
             filePtr->except = PyEvents_CreateSocket(fd,
                                                     PyEvents_EXCEPTION,
-                                                    FileProc,
-                                                    filePtr);
+                                                    FileProc);
         }
     } else {
         if (filePtr->mask & TCL_EXCEPTION) {

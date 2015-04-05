@@ -13,7 +13,7 @@
 #define PyEvents_WaitForEvent_PROTO (int)
 #define PyEvents_CreateSocket_NUM 1
 #define PyEvents_CreateSocket_RETURN PyObject*
-#define PyEvents_CreateSocket_PROTO (int fd, int mask, void(*proc)(void* info, int mask), void* argument)
+#define PyEvents_CreateSocket_PROTO (int fd, int mask, void(*proc)(int fd, int mask))
 #define PyEvents_DeleteSocket_NUM 2
 #define PyEvents_DeleteSocket_RETURN void
 #define PyEvents_DeleteSocket_PROTO (PyObject* socket)

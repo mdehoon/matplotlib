@@ -205,9 +205,8 @@ PyEvents_RemoveTimer(PyObject* unused, PyObject* argument)
 
 struct SocketObject {
     PyObject_HEAD
-    void(*proc)(void* info, int mask);
+    void(*proc)(int fd, int mask);
     int fd;
-    void* info;
     int mask;
     SocketObject* next;
 };
@@ -280,14 +279,12 @@ PyEvents_CreateSocket(
 				 * PyEvents_WRITABLE, and PyEvents_EXCEPTION:
                                  * indicates conditions under which proc
                                  * should be called. */
-    void(*proc)(void* info, int mask),
-    void* argument)		/* Arbitrary data to pass to proc. */
+    void(*proc)(int fd, int mask)) /* Callback function */
 {
     SocketObject* socket;
     socket = (SocketObject*)PyType_GenericNew(&SocketType, NULL, NULL);
     socket->proc = proc;
     socket->fd = fd;
-    socket->info = argument;
     socket->mask = mask;
     add_socket(socket);
     return (PyObject*)socket;
@@ -393,9 +390,8 @@ static int wait_for_stdin(void)
                 case PyEvents_EXCEPTION: ready = FD_ISSET(fd, &errorfds); break;
             }
             if (ready) {
-                void(*proc)(void* info, int mask) = socket->proc;
-                void* info = socket->info;
-                proc(info, mask);
+                void(*proc)(int fd, int mask) = socket->proc;
+                proc(fd, mask);
             }
             socket = socket->next;
         }
