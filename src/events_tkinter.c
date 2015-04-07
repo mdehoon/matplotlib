@@ -131,73 +131,6 @@ static PyObject *TimerProc(PyObject *unused, PyObject *timer)
     return Py_None;
 }
 
-static struct PyMethodDef timer_callback_descr = {
-  "timer_proc",
-  (PyCFunction)TimerProc,
-  METH_O,
-  NULL
-};
-
-static PyObject *timer_callback;
-
-/*
- *----------------------------------------------------------------------
- *
- * SetTimer --
- *
- *      This procedure sets the current notifier timeout value.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      Replaces any previous timer.
- *
- *----------------------------------------------------------------------
- */
-
-static void
-SetTimer(
-    const Tcl_Time *timePtr)            /* Timeout value, may be NULL. */
-{
-    unsigned long timeout;
-    PyObject* function;
-    PyObject* result = NULL;
-    PyObject* exception_type;
-    PyObject* exception_value;
-    PyObject* exception_traceback;
-    PyGILState_STATE gstate;
-    if (notifier.currentTimeout != NULL) {
-        gstate = PyGILState_Ensure();
-        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
-        function = PyObject_GetAttrString(module, "remove_timer");
-        if (function) {
-            result = PyObject_CallFunction(function, "O", notifier.currentTimeout);
-            Py_DECREF(function);
-        }
-        if (result) Py_DECREF(result);
-        else PyErr_Print();
-        PyErr_Restore(exception_type, exception_value, exception_traceback);
-        PyGILState_Release(gstate);
-        Py_DECREF(notifier.currentTimeout);
-    }
-    if (timePtr) {
-        timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
-        gstate = PyGILState_Ensure();
-        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
-        function = PyObject_GetAttrString(module, "add_timer");
-        if (function) {
-            notifier.currentTimeout = PyEval_CallFunction(function, "kO", timeout, timer_callback);
-            Py_DECREF(function);
-        }
-        if (notifier.currentTimeout==NULL) PyErr_Print();
-        PyErr_Restore(exception_type, exception_value, exception_traceback);
-        PyGILState_Release(gstate);
-    } else {
-        notifier.currentTimeout = NULL;
-    }
-}
-
 /*
  *----------------------------------------------------------------------
  *
@@ -287,11 +220,13 @@ FileHandlerEventProc(
  *----------------------------------------------------------------------
  */
 
-static void
-FileProc(int fd, int mask)
+static PyObject *FileProc(PyObject *unused, PyObject *args)
 {
+    int fd;
+    int mask;
     FileHandler* filePtr;
     FileHandlerEvent *fileEvPtr;
+    if (!PyArg_ParseTuple(args, "ii", &fd, &mask)) return NULL;
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
             filePtr = filePtr->nextPtr) {
         if (filePtr->fd == fd) {
@@ -300,32 +235,108 @@ FileProc(int fd, int mask)
     }
     if (filePtr == NULL) {
         /* This is not supposed to happen. */
-        return;
+        PyErr_SetString(PyExc_RuntimeError, "file descriptor mismatch in callback");
+        return NULL;
     }
 
     /*
      * Ignore unwanted or duplicate events.
      */
 
-    if (!(filePtr->mask & mask) || (filePtr->readyMask & mask)) {
-	return;
+    if ((filePtr->mask & mask) && !(filePtr->readyMask & mask)) {
+        /*
+         * This is an interesting event, so put it onto the event queue.
+         */
+
+        filePtr->readyMask |= mask;
+        fileEvPtr = ckalloc(sizeof(FileHandlerEvent));
+        fileEvPtr->header.proc = FileHandlerEventProc;
+        fileEvPtr->fd = filePtr->fd;
+        Tcl_QueueEvent((Tcl_Event *) fileEvPtr, TCL_QUEUE_TAIL);
+
+        /*
+         * Process events on the Tcl event queue before returning to Xt.
+         */
+
+        Tcl_ServiceAll();
     }
+    Py_INCREF(Py_None);
+    return Py_None;
+}
 
-    /*
-     * This is an interesting event, so put it onto the event queue.
-     */
+static struct PyMethodDef timer_callback_descr = {
+  "timer_proc",
+  (PyCFunction)TimerProc,
+  METH_O,
+  NULL
+};
 
-    filePtr->readyMask |= mask;
-    fileEvPtr = ckalloc(sizeof(FileHandlerEvent));
-    fileEvPtr->header.proc = FileHandlerEventProc;
-    fileEvPtr->fd = filePtr->fd;
-    Tcl_QueueEvent((Tcl_Event *) fileEvPtr, TCL_QUEUE_TAIL);
+static struct PyMethodDef file_callback_descr = {
+  "file_proc",
+  (PyCFunction)FileProc,
+  METH_VARARGS,
+  NULL
+};
 
-    /*
-     * Process events on the Tcl event queue before returning to Xt.
-     */
+static PyObject *timer_callback;
+static PyObject *file_callback;
 
-    Tcl_ServiceAll();
+/*
+ *----------------------------------------------------------------------
+ *
+ * SetTimer --
+ *
+ *      This procedure sets the current notifier timeout value.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      Replaces any previous timer.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+SetTimer(
+    const Tcl_Time *timePtr)            /* Timeout value, may be NULL. */
+{
+    unsigned long timeout;
+    PyObject* function;
+    PyObject* result = NULL;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyGILState_STATE gstate;
+    if (notifier.currentTimeout != NULL) {
+        gstate = PyGILState_Ensure();
+        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+        function = PyObject_GetAttrString(module, "remove_timer");
+        if (function) {
+            result = PyObject_CallFunction(function, "O", notifier.currentTimeout);
+            Py_DECREF(function);
+        }
+        if (result) Py_DECREF(result);
+        else PyErr_Print();
+        PyErr_Restore(exception_type, exception_value, exception_traceback);
+        PyGILState_Release(gstate);
+        Py_DECREF(notifier.currentTimeout);
+    }
+    if (timePtr) {
+        timeout = timePtr->sec * 1000 + timePtr->usec / 1000;
+        gstate = PyGILState_Ensure();
+        PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+        function = PyObject_GetAttrString(module, "add_timer");
+        if (function) {
+            notifier.currentTimeout = PyEval_CallFunction(function, "kO", timeout, timer_callback);
+            Py_DECREF(function);
+        }
+        if (notifier.currentTimeout==NULL) PyErr_Print();
+        PyErr_Restore(exception_type, exception_value, exception_traceback);
+        PyGILState_Release(gstate);
+    } else {
+        notifier.currentTimeout = NULL;
+    }
 }
 
 static ClientData InitNotifier(void)
@@ -366,6 +377,13 @@ CreateFileHandler(
                                  * event. */
     ClientData clientData)      /* Arbitrary data to pass to proc. */
 {
+    PyGILState_STATE gstate;
+    PyObject* result;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyObject* create_socket = NULL;
+    PyObject* delete_socket = NULL;
     FileHandler* filePtr;
     for (filePtr = notifier.firstFileHandlerPtr; filePtr != NULL;
             filePtr = filePtr->nextPtr) {
@@ -386,43 +404,61 @@ CreateFileHandler(
     }
     filePtr->proc = proc;
     filePtr->clientData = clientData;
+    gstate = PyGILState_Ensure();
+    PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+    create_socket = PyObject_GetAttrString(module, "create_socket");
+    if (!create_socket) goto exit;
+    delete_socket = PyObject_GetAttrString(module, "delete_socket");
+    if (!delete_socket) goto exit;
     if (mask & TCL_READABLE) {
         if (!(filePtr->mask & TCL_READABLE)) {
-            filePtr->read = PyEvents_CreateSocket(fd,
-                                                  PyEvents_READABLE,
-                                                  FileProc);
+            filePtr->read = PyEval_CallFunction(create_socket, "iiO",
+                                                fd,
+                                                PyEvents_READABLE,
+                                                file_callback);
         }
     } else {
         if (filePtr->mask & TCL_READABLE) {
-            PyEvents_DeleteSocket(filePtr->read);
+            result = PyEval_CallFunction(delete_socket, "O", filePtr->read);
+            Py_XDECREF(result);
             Py_DECREF(filePtr->read);
         }
     }
     if (mask & TCL_WRITABLE) {
         if (!(filePtr->mask & TCL_WRITABLE)) {
-            filePtr->write = PyEvents_CreateSocket(fd,
-                                                   PyEvents_WRITABLE,
-                                                   FileProc);
+            filePtr->write = PyEval_CallFunction(create_socket, "iiO",
+                                                 fd,
+                                                 PyEvents_WRITABLE,
+                                                 file_callback);
         }
     } else {
         if (filePtr->mask & TCL_WRITABLE) {
-            PyEvents_DeleteSocket(filePtr->write);
+            result = PyEval_CallFunction(delete_socket, "O", filePtr->write);
+            Py_XDECREF(result);
             Py_DECREF(filePtr->write);
         }
     }
     if (mask & TCL_EXCEPTION) {
         if (!(filePtr->mask & TCL_EXCEPTION)) {
-            filePtr->except = PyEvents_CreateSocket(fd,
-                                                    PyEvents_EXCEPTION,
-                                                    FileProc);
+            filePtr->except = PyEval_CallFunction(create_socket, "iiO",
+                                                  fd,
+                                                  PyEvents_EXCEPTION,
+                                                  file_callback);
         }
     } else {
         if (filePtr->mask & TCL_EXCEPTION) {
-            PyEvents_DeleteSocket(filePtr->except);
+            result = PyEval_CallFunction(delete_socket, "O", filePtr->except);
+            Py_XDECREF(result);
             Py_DECREF(filePtr->except);
         }
     }
+exit:
+    PyErr_Restore(exception_type, exception_value, exception_traceback);
+    PyGILState_Release(gstate);
     filePtr->mask = mask;
+    if (!create_socket || !delete_socket) PyErr_Print();
+    Py_XDECREF(create_socket);
+    Py_XDECREF(delete_socket);
 }
 
 /*
@@ -445,8 +481,21 @@ static void
 DeleteFileHandler(int fd)       /* Stream id for which to remove callback
                                  * procedure. */
 {
+    PyGILState_STATE gstate;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyObject* delete_socket;
+    PyObject* result;
     FileHandler *prevPtr;
     FileHandler* filePtr = NULL;
+    gstate = PyGILState_Ensure();
+    PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+    delete_socket = PyObject_GetAttrString(module, "delete_socket");
+    if (!delete_socket) {
+        PyErr_Print();
+        return;
+    }
 
     /*
      * Find the entry for the given file (and return if there isn't one).
@@ -472,15 +521,18 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
      */
 
     if (filePtr->mask & TCL_READABLE) {
-        PyEvents_DeleteSocket(filePtr->read);
+        result = PyEval_CallFunction(delete_socket, "O", filePtr->read);
+        Py_XDECREF(result);
         Py_DECREF(filePtr->read);
     }
     if (filePtr->mask & TCL_WRITABLE) {
-        PyEvents_DeleteSocket(filePtr->write);
+        result = PyEval_CallFunction(delete_socket, "O", filePtr->write);
+        Py_XDECREF(result);
         Py_DECREF(filePtr->write);
     }
     if (filePtr->mask & TCL_EXCEPTION) {
-        PyEvents_DeleteSocket(filePtr->except);
+        result = PyEval_CallFunction(delete_socket, "O", filePtr->except);
+        Py_XDECREF(result);
         Py_DECREF(filePtr->except);
     }
 
@@ -545,6 +597,7 @@ void initevents_tkinter(void)
     Tcl_SetNotifier(&np);
     Tcl_CreateExitHandler(NotifierExitHandler, NULL);
     timer_callback = PyCFunction_New(&timer_callback_descr, NULL);
+    file_callback = PyCFunction_New(&file_callback_descr, NULL);
 #if PY3K
     return module;
 #endif

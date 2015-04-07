@@ -205,9 +205,9 @@ PyEvents_RemoveTimer(PyObject* unused, PyObject* argument)
 
 struct SocketObject {
     PyObject_HEAD
-    void(*proc)(int fd, int mask);
     int fd;
     int mask;
+    PyObject* callback;
     SocketObject* next;
 };
 
@@ -273,31 +273,34 @@ static void remove_socket(SocketObject* socket)
 }
 
 static PyObject*
-PyEvents_CreateSocket(
-    int fd,			/* Handle of stream to watch. */
-    int mask,			/* OR'ed combination of PyEvents_READABLE,
+PyEvents_CreateSocket(PyObject* unused, PyObject* args)
+{
+    SocketObject* socket;
+    int fd;			/* Handle of stream to watch. */
+    int mask;			/* OR'ed combination of PyEvents_READABLE,
 				 * PyEvents_WRITABLE, and PyEvents_EXCEPTION:
                                  * indicates conditions under which proc
                                  * should be called. */
-    void(*proc)(int fd, int mask)) /* Callback function */
-{
-    SocketObject* socket;
+    PyObject* callback;         /* Callback function */
+    if (!PyArg_ParseTuple(args, "iiO", &fd, &mask, &callback)) return NULL;
     socket = (SocketObject*)PyType_GenericNew(&SocketType, NULL, NULL);
-    socket->proc = proc;
+    socket->callback = callback;
     socket->fd = fd;
     socket->mask = mask;
     add_socket(socket);
     return (PyObject*)socket;
 }
 
-static void
-PyEvents_DeleteSocket(PyObject* argument)
+static PyObject*
+PyEvents_DeleteSocket(PyObject* unused, PyObject* argument)
 {
     SocketObject* socket;
-    if (!argument) return;
-    if (!PyObject_TypeCheck(argument, &SocketType)) return;
+    if (!argument) return NULL;
+    if (!PyObject_TypeCheck(argument, &SocketType)) return NULL;
     socket = (SocketObject*)argument;
     remove_socket(socket);
+    Py_INCREF(Py_None);
+    return Py_None;
 }
 
 static int
@@ -361,6 +364,12 @@ static int wait_for_stdin(void)
     struct timeval timeout;
     struct timeval* ptimeout;
     SocketObject* socket;
+    PyGILState_STATE gstate;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyObject* result;
+    PyObject* arguments;
     while (1) {
         nfds = set_fds(&readfds, &writefds, &errorfds);
         FD_SET(fd_stdin, &readfds);
@@ -390,8 +399,18 @@ static int wait_for_stdin(void)
                 case PyEvents_EXCEPTION: ready = FD_ISSET(fd, &errorfds); break;
             }
             if (ready) {
-                void(*proc)(int fd, int mask) = socket->proc;
-                proc(fd, mask);
+                gstate = PyGILState_Ensure();
+                PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+                result = NULL;
+                arguments = Py_BuildValue("(ii)", fd, mask);
+
+                if (arguments) {
+                    PyObject* callback = socket->callback;
+                    result = PyEval_CallObject(callback, arguments);
+                    Py_DECREF(arguments);
+                }
+                if (result) Py_DECREF(result);
+                else PyErr_Print();
             }
             socket = socket->next;
         }
@@ -409,6 +428,16 @@ static struct PyMethodDef methods[] = {
      (PyCFunction)PyEvents_RemoveTimer,
      METH_O,
      "remove the timer."
+    },
+    {"create_socket",
+     (PyCFunction)PyEvents_CreateSocket,
+     METH_VARARGS,
+     "create a socket."
+    },
+    {"delete_socket",
+     (PyCFunction)PyEvents_DeleteSocket,
+     METH_O,
+     "delete a socket."
     },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
@@ -457,8 +486,6 @@ void initevents(void)
 #endif
     if (module==NULL) goto error;
     PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
-    PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
-    PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
     c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
     if (c_api_object != NULL)
         PyModule_AddObject(module, "_C_API", c_api_object);
