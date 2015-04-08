@@ -330,8 +330,8 @@ set_fds(fd_set* readfds, fd_set* writefds, fd_set* errorfds)
     return nfds;
 }
 
-static int
-PyEvents_WaitForEvent(int milliseconds)
+static PyObject*
+PyEvents_WaitForEvent(PyObject* unused, PyObject* args)
 {
     int nfds;
     fd_set readfds;
@@ -339,15 +339,19 @@ PyEvents_WaitForEvent(int milliseconds)
     fd_set errorfds;
     struct timeval timeout;
     unsigned long waittime;
+    long int milliseconds;
+    int result = 0;
+    if (!PyArg_ParseTuple(args, "k", &milliseconds)) return NULL;
     waittime = check_timers();
-    if (waittime == 0) return 0;
-    if (waittime < milliseconds) milliseconds = waittime;
-    timeout.tv_sec = milliseconds / 1000;
-    timeout.tv_usec = 1000 * (milliseconds % 1000);
-    nfds = set_fds(&readfds, &writefds, &errorfds);
-    if (select(nfds, &readfds, &writefds, &errorfds, &timeout)==-1)
-        /* handle error */ ;
-    return 0;
+    if (waittime > 0) {
+        if (waittime < milliseconds) milliseconds = waittime;
+        timeout.tv_sec = milliseconds / 1000;
+        timeout.tv_usec = 1000 * (milliseconds % 1000);
+        nfds = set_fds(&readfds, &writefds, &errorfds);
+        if (select(nfds, &readfds, &writefds, &errorfds, &timeout)==-1)
+            return PyErr_SetFromErrno(PyExc_RuntimeError);
+    }
+    return PyInt_FromLong(result);
 }
 
 static int wait_for_stdin(void)
@@ -439,6 +443,11 @@ static struct PyMethodDef methods[] = {
      METH_O,
      "delete a socket."
     },
+    {"wait_for_event",
+     (PyCFunction)PyEvents_WaitForEvent,
+     METH_VARARGS,
+     "wait for an event."
+    },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
@@ -468,9 +477,6 @@ void initevents(void)
 #endif
 {
     PyObject *module;
-    static void *PyEvents_API[PyEvents_API_pointers];
-    PyObject* c_api_object;
-
     if (PyType_Ready(&TimerType) < 0)
         goto error;
     if (PyType_Ready(&SocketType) < 0)
@@ -485,10 +491,6 @@ void initevents(void)
                             PYTHON_API_VERSION);
 #endif
     if (module==NULL) goto error;
-    PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
-    c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
-    if (c_api_object != NULL)
-        PyModule_AddObject(module, "_C_API", c_api_object);
     notifier.firstTimer = NULL;
     notifier.firstSocket = NULL;
     PyOS_InputHook = wait_for_stdin;

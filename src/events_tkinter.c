@@ -110,11 +110,33 @@ NotifierExitHandler(
 static int
 WaitForEvent(const Tcl_Time *timePtr)      /* Maximum block time, or NULL. */
 {
-    int milliseconds = INT_MAX;
-    if (timePtr) {
+    long i = -1;
+    PyObject* result;
+    PyObject* function;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyGILState_STATE gstate;
+    unsigned long milliseconds = ULONG_MAX;
+    if (timePtr)
         milliseconds = timePtr->sec * 1000 + timePtr->usec / 1000;
+    gstate = PyGILState_Ensure();
+    PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+    function = PyObject_GetAttrString(module, "wait_for_event");
+    if (function) {
+        result = PyObject_CallFunction(function, "k", milliseconds);
+        Py_DECREF(function);
+        if (result) {
+            if (PyInt_Check(result)) i = PyInt_AS_LONG(result);
+            else PyErr_SetString(PyExc_RuntimeError,
+                                 "wait_for_event failed to return an integer");
+            Py_DECREF(result);
+        }
     }
-    return PyEvents_WaitForEvent(milliseconds);
+    if (i==-1) PyErr_Print();
+    PyErr_Restore(exception_type, exception_value, exception_traceback);
+    PyGILState_Release(gstate);
+    return i;
 }
 
 static PyObject *TimerProc(PyObject *unused, PyObject *timer)
@@ -580,12 +602,6 @@ void initevents_tkinter(void)
                             "events_tkinter module",
                             NULL,
                             PYTHON_API_VERSION);
-#endif
-    if (import_events() < 0)
-#if PY3K
-        return NULL;
-#else
-        return;
 #endif
     memset(&np, 0, sizeof(np));
     np.initNotifierProc = InitNotifier;
