@@ -27,7 +27,7 @@
 typedef struct {
     PyObject_HEAD
     CFRunLoopTimerRef timer;
-    void(*callback)(PyObject*);
+    PyObject* callback;
 } TimerObject;
 
 static PyTypeObject TimerType = {
@@ -56,7 +56,13 @@ static PyTypeObject TimerType = {
 
 static void timer_callback(CFRunLoopTimerRef timer, void* info)
 {
-    void(*callback)(PyObject*);
+    PyGILState_STATE gstate;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyObject* callback;
+    PyObject* arguments;
+    PyObject* result = NULL;
     TimerObject* object = (TimerObject*)info;
     if (object->timer != timer) {
         /* this is not supposed to happen */
@@ -64,11 +70,23 @@ static void timer_callback(CFRunLoopTimerRef timer, void* info)
     }
     object->timer = NULL;
     callback = object->callback;
-    callback((PyObject*)object);
+    gstate = PyGILState_Ensure();
+    PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+    arguments = Py_BuildValue("(O)", object);
+    if (arguments) {
+        result = PyEval_CallObject(callback, arguments);
+        Py_DECREF(arguments);
+    }
+    if (result) Py_DECREF(result);
+    else PyErr_Print();
+    PyErr_Restore(exception_type, exception_value, exception_traceback);
+    PyGILState_Release(gstate);
+    Py_DECREF(callback);
+    Py_DECREF((PyObject*)object);
 }
 
 static PyObject*
-PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
+PyEvents_AddTimer(PyObject* unused, PyObject* args)
 {
     TimerObject* object;
     CFRunLoopTimerRef timer;
@@ -76,12 +94,21 @@ PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
     CFAbsoluteTime fireDate;
     CFRunLoopTimerContext context;
     CFRunLoopRef runloop;
-    object = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
+    unsigned long timeout;
+    PyObject* callback;
+    if (!PyArg_ParseTuple(args, "kO", &timeout, &callback)) return NULL;
+    if (!PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "Callback should be callable");
+        return NULL;
+    }
     runloop = CFRunLoopGetCurrent();
     if (!runloop) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to obtain run loop");
         return NULL;
     }
+    object = (TimerObject*)PyType_GenericNew(&TimerType, NULL, NULL);
+    Py_INCREF((PyObject*)object);
+    Py_INCREF(callback);
     interval = timeout / 1000.0;
     fireDate = CFAbsoluteTimeGetCurrent() + interval;
     context.version = 0;
@@ -102,42 +129,66 @@ PyEvents_AddTimer(unsigned long timeout, void(*callback)(PyObject*))
     return (PyObject*)object;
 }
 
-static void
-PyEvents_RemoveTimer(PyObject* argument)
+static PyObject*
+PyEvents_RemoveTimer(PyObject* unused, PyObject* argument)
 {
-    if (argument && PyObject_TypeCheck(argument, &TimerType))
-    {
-        CFRunLoopRef runloop;
-        TimerObject* object = (TimerObject*)argument;
-        CFRunLoopTimerRef timer = object->timer;
-        runloop = CFRunLoopGetCurrent();
-        if (timer) {
-            CFRunLoopRemoveTimer(runloop, timer, kCFRunLoopDefaultMode);
-            object->timer = NULL;
-        }
+    TimerObject* object;
+    PyObject* callback;
+    CFRunLoopRef runloop;
+    CFRunLoopTimerRef timer;
+    if (!PyObject_TypeCheck(argument, &TimerType)) {
+        PyErr_SetString(PyExc_TypeError, "argument is not a timer");
+        return NULL;
     }
+    object = (TimerObject*)argument;
+    timer = object->timer;
+    callback = object->callback;
+    runloop = CFRunLoopGetCurrent();
+    if (timer) {
+        CFRunLoopRemoveTimer(runloop, timer, kCFRunLoopDefaultMode);
+        object->timer = NULL;
+    }
+    Py_DECREF(callback);
+    Py_DECREF(argument);
+    Py_INCREF(Py_None);
+    return Py_None;
 }
 
 typedef struct {
     PyObject_HEAD
     CFRunLoopSourceRef source;
-    void(*proc)(void* info, int mask);
-    void* info;
     int mask;
+    PyObject* callback;
 } SocketObject;
 
 static void
-socket_callback(CFSocketRef s,
+socket_callback(CFSocketRef socket,
                 CFSocketCallBackType callbackType,
                 CFDataRef address,
                 const void* data,
                 void* info)
 {
+    PyGILState_STATE gstate;
+    PyObject* exception_type;
+    PyObject* exception_value;
+    PyObject* exception_traceback;
+    PyObject* arguments;
+    PyObject* result = NULL;
     SocketObject* object = info;
-    void(*proc)(void* info, int mask) = object->proc;
-    void* argument = object->info;
+    int fd = CFSocketGetNative(socket);
     int mask = object->mask;
-    return proc(argument, mask);
+    gstate = PyGILState_Ensure();
+    PyErr_Fetch(&exception_type, &exception_value, &exception_traceback);
+    arguments = Py_BuildValue("(ii)", fd, mask);
+    if (arguments) {
+        PyObject* callback = object->callback;
+        result = PyEval_CallObject(callback, arguments);
+        Py_DECREF(arguments);
+    }
+    if (result) Py_DECREF(result);
+    else PyErr_Print();
+    PyErr_Restore(exception_type, exception_value, exception_traceback);
+    PyGILState_Release(gstate);
 }
 
 static PyTypeObject SocketType = {
@@ -165,21 +216,25 @@ static PyTypeObject SocketType = {
 };
 
 static PyObject*
-PyEvents_CreateSocket(
-    int fd,			/* Handle of stream to watch. */
-    int mask,			/* OR'ed combination of PyEvents_READABLE,
+PyEvents_CreateSocket(PyObject* unused, PyObject* args)
+{
+    SocketObject* object;
+    int fd;			/* Handle of stream to watch. */
+    int mask;			/* OR'ed combination of PyEvents_READABLE,
 				 * PyEvents_WRITABLE, and PyEvents_EXCEPTION:
                                  * indicates conditions under which proc
                                  * should be called. */
-    void(*proc)(void* info, int mask),
-    void* argument)		/* Arbitrary data to pass to proc. */
-{
+    PyObject* callback;         /* Callback function */
     CFRunLoopRef runloop;
     CFRunLoopSourceRef source;
     CFSocketRef socket;
     CFSocketCallBackType condition;
-    SocketObject* object;
     CFSocketContext context;
+    if (!PyArg_ParseTuple(args, "iiO", &fd, &mask, &callback)) return NULL;
+    if (!PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "Callback should be callable");
+        return NULL;
+    }
     switch (mask) {
         case PyEvents_READABLE:
             condition = kCFSocketReadCallBack; break;
@@ -187,9 +242,12 @@ PyEvents_CreateSocket(
             condition = kCFSocketWriteCallBack; break;
         case PyEvents_EXCEPTION:
             condition = kCFSocketNoCallBack; break;
-        default: return 0;
+        default:
+            return PyErr_Format(PyExc_TypeError, "Unexpected mask %d", mask);
     }
     object = (SocketObject*)PyType_GenericNew(&SocketType, NULL, NULL);
+    Py_INCREF(object);
+    Py_INCREF(callback);
     context.version = 0;
     context.info = object;
     context.retain = 0;
@@ -207,40 +265,49 @@ PyEvents_CreateSocket(
     runloop = CFRunLoopGetCurrent();
     CFRunLoopAddSource(runloop, source, kCFRunLoopDefaultMode);
     CFRelease(source);
-    object->proc = proc;
-    object->info = argument;
+    object->callback = callback;
     object->mask = mask;
     object->source = source;
     return (PyObject*)object;
 }
 
-static void
+static PyObject*
 PyEvents_DeleteSocket(PyObject* argument)
 {
-    if (argument && PyObject_TypeCheck(argument, &SocketType))
-    {
-        SocketObject* object = (SocketObject*)argument;
-        CFRunLoopSourceRef source = object->source;
-        CFRunLoopRef runloop = CFRunLoopGetCurrent();
-        if (source) {
-            CFRunLoopRemoveSource(runloop, source, kCFRunLoopDefaultMode);
-            object->source = NULL;
-        }
+    if (!PyObject_TypeCheck(argument, &SocketType)) {
+        PyErr_SetString(PyExc_TypeError, "argument is not a socket");
+        return NULL;
     }
+    SocketObject* object = (SocketObject*)argument;
+    CFRunLoopSourceRef source = object->source;
+    CFRunLoopRef runloop = CFRunLoopGetCurrent();
+    if (source) {
+        CFRunLoopRemoveSource(runloop, source, kCFRunLoopDefaultMode);
+        object->source = NULL;
+    }
+    Py_DECREF(object->callback);
+    Py_DECREF(object);
+    Py_INCREF(Py_None);
+    return Py_None;
 }
 
-static int
-PyEvents_WaitForEvent(int milliseconds)
+static PyObject*
+PyEvents_WaitForEvent(PyObject* unused, PyObject* args)
 {
-    CFTimeInterval seconds = milliseconds / 1000.0;
-    SInt32 status = CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, true);
+    int milliseconds;
+    CFTimeInterval seconds;
+    SInt32 status;
+    long result = 0;
+    if (!PyArg_ParseTuple(args, "k", &milliseconds)) return NULL;
+    seconds = milliseconds / 1000.0;
+    status = CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, true);
     switch (status) { 
-        case kCFRunLoopRunFinished: return -1;
-        case kCFRunLoopRunStopped: return -1;
-        case kCFRunLoopRunTimedOut: return 0;
-        case kCFRunLoopRunHandledSource: return 1;
+        case kCFRunLoopRunFinished: result = -1; break;
+        case kCFRunLoopRunStopped: result = -1; break;
+        case kCFRunLoopRunTimedOut: result = 0; break;
+        case kCFRunLoopRunHandledSource: result = 1; break;
     }
-    return -1;
+    return PyInt_FromLong(result);
 }
 
 static void
@@ -450,6 +517,31 @@ static WindowServerConnectionManager *sharedWindowServerConnectionManager = nil;
 @end
 
 static struct PyMethodDef methods[] = {
+    {"add_timer",
+     (PyCFunction)PyEvents_AddTimer,
+     METH_VARARGS,
+     "add a timer."
+    },
+    {"remove_timer",
+     (PyCFunction)PyEvents_RemoveTimer,
+     METH_O,
+     "remove the timer."
+    },
+    {"create_socket",
+     (PyCFunction)PyEvents_CreateSocket,
+     METH_VARARGS,
+     "create a socket."
+    },
+    {"delete_socket",
+     (PyCFunction)PyEvents_DeleteSocket,
+     METH_O,
+     "delete a socket."
+    },
+    {"wait_for_event",
+     (PyCFunction)PyEvents_WaitForEvent,
+     METH_VARARGS,
+     "wait for an event."
+    },
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
@@ -479,8 +571,6 @@ void initevents(void)
 #endif
 {
     PyObject *module;
-    static void *PyEvents_API[PyEvents_API_pointers];
-    PyObject* c_api_object;
     if (PyType_Ready(&TimerType) < 0)
         goto error;
     if (PyType_Ready(&SocketType) < 0)
@@ -504,14 +594,6 @@ void initevents(void)
                                name: NSWorkspaceDidLaunchApplicationNotification
                              object: nil];
 
-    PyEvents_API[PyEvents_AddTimer_NUM] = (void *)PyEvents_AddTimer;
-    PyEvents_API[PyEvents_RemoveTimer_NUM] = (void *)PyEvents_RemoveTimer;
-    PyEvents_API[PyEvents_WaitForEvent_NUM] = (void *)PyEvents_WaitForEvent;
-    PyEvents_API[PyEvents_CreateSocket_NUM] = (void *)PyEvents_CreateSocket;
-    PyEvents_API[PyEvents_DeleteSocket_NUM] = (void *)PyEvents_DeleteSocket;
-    c_api_object = PyCapsule_New((void *)PyEvents_API, "events._C_API", NULL);
-    if (c_api_object != NULL)
-        PyModule_AddObject(module, "_C_API", c_api_object);
     PyOS_InputHook = wait_for_stdin;
 #if PY3K
     return module;
