@@ -195,8 +195,10 @@ static PyObject*
 PyEvents_RemoveTimer(PyObject* unused, PyObject* argument)
 {
     TimerObject* timer;
-    if (!argument) return NULL;
-    if (!PyObject_TypeCheck(argument, &TimerType)) return NULL;
+    if (!PyObject_TypeCheck(argument, &TimerType)) {
+        PyErr_SetString(PyExc_TypeError, "argument is not a timer");
+        return NULL;
+    }
     timer = (TimerObject*)argument;
     remove_timer(timer);
     Py_INCREF(Py_None);
@@ -264,6 +266,7 @@ static void remove_socket(SocketObject* socket)
             current = current->next;
             if (previous) previous->next = current;
             else notifier.firstSocket = current;
+            Py_DECREF(socket->callback);
             Py_DECREF(socket);
             break;
         }
@@ -283,6 +286,11 @@ PyEvents_CreateSocket(PyObject* unused, PyObject* args)
                                  * should be called. */
     PyObject* callback;         /* Callback function */
     if (!PyArg_ParseTuple(args, "iiO", &fd, &mask, &callback)) return NULL;
+    if (!PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "Callback should be callable");
+        return NULL;
+    }
+    Py_INCREF(callback);
     socket = (SocketObject*)PyType_GenericNew(&SocketType, NULL, NULL);
     socket->callback = callback;
     socket->fd = fd;
@@ -295,8 +303,10 @@ static PyObject*
 PyEvents_DeleteSocket(PyObject* unused, PyObject* argument)
 {
     SocketObject* socket;
-    if (!argument) return NULL;
-    if (!PyObject_TypeCheck(argument, &SocketType)) return NULL;
+    if (!PyObject_TypeCheck(argument, &SocketType)) {
+        PyErr_SetString(PyExc_TypeError, "argument is not a socket");
+        return NULL;
+    }
     socket = (SocketObject*)argument;
     remove_socket(socket);
     Py_INCREF(Py_None);
@@ -339,8 +349,8 @@ PyEvents_WaitForEvent(PyObject* unused, PyObject* args)
     fd_set errorfds;
     struct timeval timeout;
     unsigned long waittime;
-    long int milliseconds;
-    int result = 0;
+    long milliseconds;
+    long result = 0;
     if (!PyArg_ParseTuple(args, "k", &milliseconds)) return NULL;
     waittime = check_timers();
     if (waittime > 0) {
@@ -415,6 +425,8 @@ static int wait_for_stdin(void)
                 }
                 if (result) Py_DECREF(result);
                 else PyErr_Print();
+                PyErr_Restore(exception_type, exception_value, exception_traceback);
+                PyGILState_Release(gstate);
             }
             socket = socket->next;
         }
