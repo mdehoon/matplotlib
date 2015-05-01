@@ -516,7 +516,7 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
     delete_socket = PyObject_GetAttrString(module, "delete_socket");
     if (!delete_socket) {
         PyErr_Print();
-        return;
+        goto exit;
     }
 
     /*
@@ -526,7 +526,7 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
     for (prevPtr = NULL, filePtr = notifier.firstFileHandlerPtr; ;
             prevPtr = filePtr, filePtr = filePtr->nextPtr) {
         if (filePtr == NULL) {
-            return;
+            goto exit;
         }
         if (filePtr->fd == fd) {
             break;
@@ -559,6 +559,9 @@ DeleteFileHandler(int fd)       /* Stream id for which to remove callback
     }
 
     ckfree(filePtr);
+exit:
+    PyErr_Restore(exception_type, exception_value, exception_traceback);
+    PyGILState_Release(gstate);
 }
 
 static struct PyMethodDef methods[] = {
