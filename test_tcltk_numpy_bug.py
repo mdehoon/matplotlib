@@ -1,5 +1,5 @@
 import sys
-import numpy
+import ctypes
 import Tkinter as Tk
 import events
 import events_tkinter
