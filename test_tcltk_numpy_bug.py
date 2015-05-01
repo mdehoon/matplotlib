@@ -1,5 +1,4 @@
 import sys
-import _ctypes
 import Tkinter as Tk
 import events
 import events_tkinter

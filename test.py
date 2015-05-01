@@ -25,4 +25,7 @@ g(None)
 
 t = Tk()
 t.eval('proc f {} { puts "hello"; after 1000 f }; f;')
+b = Button(t, text="Hello, world!")
+b.pack()
+
 # t.evalfile('widget')
