@@ -9,9 +9,12 @@ events_tkinter.wait_for_event = events.wait_for_event
 
 import Tkinter
 
+def f():
+    print 'hello'
+
 root = Tkinter.Tk()
-# b = Tkinter.Button(root, text="Hello, world!")
-# b.pack()
+b = Tkinter.Button(root, text="Hello, world!", command=f)
+b.pack()
 
 # import matplotlib
 # matplotlib.use("tkagg")
